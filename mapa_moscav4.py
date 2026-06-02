@@ -991,20 +991,21 @@ if filtros_activos:
 # ============================================================
 # PREPARAR DATOS PARA JAVASCRIPT
 # ============================================================
-# ============================================================
-# PREPARAR DATOS PARA JAVASCRIPT
-# ============================================================
-map_data            = []
+map_data           = []
 lotes_para_contorno = []
-lotes_markers       = []
-polygons_con_datos  = []
+lotes_markers      = []
+polygons_con_datos = []
+lotes_etiquetas    = []
+
 if not dff.empty:
+    from collections import defaultdict
+
     dff_agg = dff.copy()
-    dff_agg["lote"] = dff_agg["lote"].fillna("").astype(str).str.strip()
+    dff_agg["lote"]     = dff_agg["lote"].fillna("").astype(str).str.strip()
     dff_agg["lat_orig"] = dff_agg["lat"].copy()
     dff_agg["lon_orig"] = dff_agg["lon"].copy()
-    dff_agg["lat"] = dff_agg["lat"].fillna(-9999.0)
-    dff_agg["lon"] = dff_agg["lon"].fillna(-9999.0)
+    dff_agg["lat"]      = dff_agg["lat"].fillna(-9999.0)
+    dff_agg["lon"]      = dff_agg["lon"].fillna(-9999.0)
 
     dff_agg["modulo_n"] = dff_agg["modulo"].apply(lambda x: norm_mod(str(x)))
     dff_agg["turno_n"]  = dff_agg["turno"].apply(lambda x: norm_tur(str(x)))
@@ -1025,12 +1026,11 @@ if not dff.empty:
         })
     )
 
-    map_data     = dff_agg.to_dict("records")
-    valid        = dff_agg.copy()
+    map_data      = dff_agg.to_dict("records")
+    valid         = dff_agg.copy()
     lotes_markers = calcular_lotes_con_centroide(valid, kmz_polygons)
 
     # ── Agrupar por turno para etiquetas ──
-    from collections import defaultdict
     turnos_agrupados = defaultdict(lambda: {
         "lats": [], "lons": [], "capturas": 0,
         "lotes": [], "fundo": "", "modulo": "", "turno": "",
@@ -1051,7 +1051,6 @@ if not dff.empty:
         if lote_val and lote_val not in g["lotes"]:
             g["lotes"].append(lote_val)
 
-    lotes_etiquetas = []
     for key, g in turnos_agrupados.items():
         if g["lats"]:
             lotes_etiquetas.append({
@@ -1074,64 +1073,8 @@ if not dff.empty:
     ]
 
     # ── Polígonos KMZ que SÍ tienen datos ──
-    keys_con_datos = set(m["key_kmz"] for m in lotes_markers if m.get("con_kmz"))
+    keys_con_datos     = set(m["key_kmz"] for m in lotes_markers if m.get("con_kmz"))
     polygons_con_datos = []
-    for poly in kmz_polygons:
-        fundo_aq = str(poly.get("fundo_aq", "")).upper().strip()
-        mod_n    = poly.get("mod_n")
-        tur_n    = poly.get("tur_n")
-        lote_n   = norm_lote(str(poly.get("lote_name", "")))
-        key      = f"{fundo_aq}|{mod_n}|{tur_n}|{lote_n}"
-        if key in keys_con_datos:
-            polygons_con_datos.append(poly)
-
-from collections import defaultdict
-
-turnos_agrupados = defaultdict(lambda: {
-    "lats": [], "lons": [], "capturas": 0,
-    "lotes": [], "fundo": "", "modulo": "", "turno": "",
-    "con_kmz": False
-})
-
-for m in lotes_markers:
-    # ── Key normalizado: evita duplicados por MOD 03 vs MOD 3, T07 vs M3-T7 ──
-    key = f"{m['fundo_aq']}|{m['modulo_n']}|{m['turno_n']}"
-    g = turnos_agrupados[key]
-    g["lats"].append(m["lat"])
-    g["lons"].append(m["lon"])
-    g["capturas"] += m["capturas"]
-    g["fundo"]    = m["fundo"]
-    g["modulo"]   = m["modulo"]
-    g["turno"]    = m["turno"]
-    g["con_kmz"]  = g["con_kmz"] or m.get("con_kmz", False)
-    lote_val = m.get("lote", "")
-    if lote_val and lote_val not in g["lotes"]:
-        g["lotes"].append(lote_val)
-
-lotes_etiquetas = []
-for key, g in turnos_agrupados.items():
-    if g["lats"]:
-        lotes_etiquetas.append({
-            "lat":      sum(g["lats"]) / len(g["lats"]),
-            "lon":      sum(g["lons"]) / len(g["lons"]),
-            "capturas": g["capturas"],
-            "fundo":    g["fundo"],
-            "modulo":   g["modulo"],
-            "turno":    g["turno"],
-            "lotes":    sorted(g["lotes"]),
-            "n_lotes":  len(g["lotes"]),
-            "con_kmz":  g["con_kmz"],
-        })
-
-    # ── Para el gaussiano usar solo los que tienen centroide KMZ ──
-    lotes_para_contorno = [
-        {"lat": m["lat"], "lon": m["lon"], "capturas": m["capturas"]}
-        for m in lotes_markers
-        if m.get("con_kmz")
-    ]
-
-    # ── Polígonos KMZ que SÍ tienen datos ──
-    keys_con_datos = set(m["key_kmz"] for m in lotes_markers if m.get("con_kmz"))
     for poly in kmz_polygons:
         fundo_aq = str(poly.get("fundo_aq", "")).upper().strip()
         mod_n    = poly.get("mod_n")
@@ -1148,11 +1091,10 @@ if modo_color in ["Curvas de Nivel", "Espectral"] and len(lotes_para_contorno) >
         contornos = generar_contornos_gauss(
             lotes_para_contorno,
             polygons_con_datos,
-            num_niveles   = num_niveles    or 10,
-            grosor_lineas = grosor_lineas  or 3,
+            num_niveles   = num_niveles   or 10,
+            grosor_lineas = grosor_lineas or 3,
             opacidad_fill = (opacidad_relleno or 65) / 100.0,
         )
-
 # ── Configuración visualización ──
 viz_config = {
     "modo_color":        modo_color,
@@ -1375,7 +1317,6 @@ with col_pub:
             st.sidebar.markdown(f"[🔗 Ver mapa]({resultado})", unsafe_allow_html=True)
         else:
             st.sidebar.error(resultado)
-
 with col_png:
     if st.button("🖼️ PNG", use_container_width=True, key="btn_png"):
         with st.spinner("Capturando mapa..."):
@@ -1402,7 +1343,8 @@ with col_png:
                             "--no-sandbox",
                             "--disable-dev-shm-usage",
                             "--disable-gpu",
-                            "--disable-web-security",  # ← permite cargar recursos locales
+                            "--disable-web-security",
+                            "--allow-file-access-from-files",
                         ]
                     )
                     page = browser.new_page(
@@ -1414,32 +1356,55 @@ with col_png:
                     page.goto(f"file://{tmp_html.name}", wait_until="networkidle")
                     page.wait_for_timeout(3000)
 
-                    # ── Activar modo PNG (oculta controles, ajusta vista) ──
+                    # ── Activar modo PNG ──
                     try:
                         page.evaluate("activarModoPNGGeneral()")
                     except Exception:
                         pass
 
-                    # ── Esperar que el mapa Leaflet esté listo ──
+                    # ── Forzar carga de imágenes de markers ──
                     try:
-                        # Esperar que exista el canvas de Leaflet (tiles renderizados)
+                        page.evaluate("""
+                            () => new Promise((resolve) => {
+                                const imgs = document.querySelectorAll(
+                                    '.leaflet-marker-icon, .leaflet-marker-shadow, img'
+                                );
+                                let pending = imgs.length;
+                                if (pending === 0) { resolve(); return; }
+                                imgs.forEach(img => {
+                                    if (img.complete) {
+                                        pending--;
+                                        if (pending === 0) resolve();
+                                    } else {
+                                        img.onload  = () => { pending--; if (pending === 0) resolve(); };
+                                        img.onerror = () => { pending--; if (pending === 0) resolve(); };
+                                    }
+                                });
+                                setTimeout(resolve, 8000); // máximo 8s
+                            })
+                        """)
+                    except Exception:
+                        pass
+
+                    # ── Esperar tiles Leaflet ──
+                    try:
                         page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
                     except Exception:
-                        pass  # si no aparece, continuar igual
+                        pass
 
-                    # ── Esperar markers (iconos mosca) ──
+                    # ── Esperar markers ──
                     try:
                         page.wait_for_selector(".leaflet-marker-icon", timeout=10000)
                     except Exception:
                         pass
 
-                    # ── Esperar extra para curvas de nivel (son polígonos SVG) ──
+                    # ── Esperar curvas SVG ──
                     try:
                         page.wait_for_selector(".leaflet-zoom-animated path", timeout=10000)
                     except Exception:
                         pass
 
-                    # ── Pausa final para que todo termine de pintar ──
+                    # ── Pausa final ──
                     page.wait_for_timeout(5000)
 
                     # ── Capturar ──
@@ -1450,6 +1415,7 @@ with col_png:
                         png_bytes = page.screenshot(full_page=False)
 
                     browser.close()
+
                 # ── Mostrar resolución ──
                 img = Image.open(io.BytesIO(png_bytes))
                 st.sidebar.caption(f"📐 {img.width}×{img.height}px")
