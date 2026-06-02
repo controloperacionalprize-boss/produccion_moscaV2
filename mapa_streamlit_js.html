@@ -937,7 +937,7 @@
 
         function _actualizarCapasPorZoom() {
             if (!window._badgeLayer || !window._circleLayer) return;
-            // Respetar checkbox de trampas
+
             const trampasVisible = window._trampasVisible !== false;
             if (!trampasVisible) return;
 
@@ -948,6 +948,21 @@
             } else {
                 if (map.hasLayer(window._circleLayer)) map.removeLayer(window._circleLayer);
                 if (!map.hasLayer(window._badgeLayer)) window._badgeLayer.addTo(map);
+            }
+
+            // ── Respetar visibilidad de etiquetas no rojas tras cambio de zoom ──
+            const etiquetasVisible = window._etiquetasVisible !== false;
+            if (!etiquetasVisible) {
+                [window._badgeLayer, window._circleLayer].forEach(layer => {
+                    if (!layer) return;
+                    layer.eachLayer(function(marker) {
+                        const icon = marker.options?.icon?.options?.html || "";
+                        if (!icon.includes("background:#FF0000")) {
+                            const el = marker.getElement();
+                            if (el) el.style.visibility = "hidden";
+                        }
+                    });
+                });
             }
         }
         // ============================================================
