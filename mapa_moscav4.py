@@ -1402,6 +1402,7 @@ with col_png:
                             "--no-sandbox",
                             "--disable-dev-shm-usage",
                             "--disable-gpu",
+                            "--disable-web-security",  # ← permite cargar recursos locales
                         ]
                     )
                     page = browser.new_page(
@@ -1410,25 +1411,45 @@ with col_png:
                     )
 
                     # ── Cargar HTML ──
-                    page.goto(f"file://{tmp_html.name}")
-                    page.wait_for_timeout(5000)  # esperar carga del mapa
+                    page.goto(f"file://{tmp_html.name}", wait_until="networkidle")
+                    page.wait_for_timeout(3000)
 
-                    # ── Activar modo PNG ──
+                    # ── Activar modo PNG (oculta controles, ajusta vista) ──
                     try:
                         page.evaluate("activarModoPNGGeneral()")
-                        page.wait_for_timeout(5000)  # esperar tiles + markers
                     except Exception:
-                        pass  # si la función no existe, captura igual
+                        pass
 
-                    # ── Capturar elemento mapContainer o pantalla completa ──
+                    # ── Esperar que el mapa Leaflet esté listo ──
                     try:
-                        map_el   = page.locator("#mapContainer")
+                        # Esperar que exista el canvas de Leaflet (tiles renderizados)
+                        page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
+                    except Exception:
+                        pass  # si no aparece, continuar igual
+
+                    # ── Esperar markers (iconos mosca) ──
+                    try:
+                        page.wait_for_selector(".leaflet-marker-icon", timeout=10000)
+                    except Exception:
+                        pass
+
+                    # ── Esperar extra para curvas de nivel (son polígonos SVG) ──
+                    try:
+                        page.wait_for_selector(".leaflet-zoom-animated path", timeout=10000)
+                    except Exception:
+                        pass
+
+                    # ── Pausa final para que todo termine de pintar ──
+                    page.wait_for_timeout(5000)
+
+                    # ── Capturar ──
+                    try:
+                        map_el    = page.locator("#mapContainer")
                         png_bytes = map_el.screenshot()
                     except Exception:
                         png_bytes = page.screenshot(full_page=False)
 
                     browser.close()
-
                 # ── Mostrar resolución ──
                 img = Image.open(io.BytesIO(png_bytes))
                 st.sidebar.caption(f"📐 {img.width}×{img.height}px")
