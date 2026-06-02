@@ -1006,12 +1006,10 @@ if not dff.empty:
     dff_agg["lat"] = dff_agg["lat"].fillna(-9999.0)
     dff_agg["lon"] = dff_agg["lon"].fillna(-9999.0)
 
-    # ── Normalizar modulo y turno ANTES del groupby ──
     dff_agg["modulo_n"] = dff_agg["modulo"].apply(lambda x: norm_mod(str(x)))
     dff_agg["turno_n"]  = dff_agg["turno"].apply(lambda x: norm_tur(str(x)))
     dff_agg["lote_n"]   = dff_agg["lote"].apply(lambda x: norm_lote(str(x)))
 
-    # ── Groupby por claves normalizadas ──
     dff_agg = (
         dff_agg
         .groupby(["fundo", "modulo_n", "turno_n", "lote_n"], as_index=False)
@@ -1021,19 +1019,72 @@ if not dff.empty:
             "tipo_trampa": "first",
             "lat":         "first",
             "lon":         "first",
-            "modulo":      "first",  # valor original para display
-            "turno":       "first",  # valor original para display
-            "lote":        "first",  # valor original para display
+            "modulo":      "first",
+            "turno":       "first",
+            "lote":        "first",
         })
     )
 
-    map_data = dff_agg.to_dict("records")
-
-    # ── TODAS las filas sin filtrar por GPS ──
-    valid = dff_agg.copy()
-
-    # ── OPCIÓN A: Posicionar marcadores en centroide KMZ ──
+    map_data     = dff_agg.to_dict("records")
+    valid        = dff_agg.copy()
     lotes_markers = calcular_lotes_con_centroide(valid, kmz_polygons)
+
+    # ── Agrupar por turno para etiquetas ──
+    from collections import defaultdict
+    turnos_agrupados = defaultdict(lambda: {
+        "lats": [], "lons": [], "capturas": 0,
+        "lotes": [], "fundo": "", "modulo": "", "turno": "",
+        "con_kmz": False
+    })
+
+    for m in lotes_markers:
+        key = f"{m['fundo_aq']}|{m['modulo_n']}|{m['turno_n']}"
+        g = turnos_agrupados[key]
+        g["lats"].append(m["lat"])
+        g["lons"].append(m["lon"])
+        g["capturas"] += m["capturas"]
+        g["fundo"]   = m["fundo"]
+        g["modulo"]  = m["modulo"]
+        g["turno"]   = m["turno"]
+        g["con_kmz"] = g["con_kmz"] or m.get("con_kmz", False)
+        lote_val = m.get("lote", "")
+        if lote_val and lote_val not in g["lotes"]:
+            g["lotes"].append(lote_val)
+
+    lotes_etiquetas = []
+    for key, g in turnos_agrupados.items():
+        if g["lats"]:
+            lotes_etiquetas.append({
+                "lat":      sum(g["lats"]) / len(g["lats"]),
+                "lon":      sum(g["lons"]) / len(g["lons"]),
+                "capturas": g["capturas"],
+                "fundo":    g["fundo"],
+                "modulo":   g["modulo"],
+                "turno":    g["turno"],
+                "lotes":    sorted(g["lotes"]),
+                "n_lotes":  len(g["lotes"]),
+                "con_kmz":  g["con_kmz"],
+            })
+
+    # ── Para el gaussiano: solo lotes con centroide KMZ ──
+    lotes_para_contorno = [
+        {"lat": m["lat"], "lon": m["lon"], "capturas": m["capturas"]}
+        for m in lotes_markers
+        if m.get("con_kmz")
+    ]
+
+    # ── Polígonos KMZ que SÍ tienen datos ──
+    keys_con_datos = set(m["key_kmz"] for m in lotes_markers if m.get("con_kmz"))
+    polygons_con_datos = []
+    for poly in kmz_polygons:
+        fundo_aq = str(poly.get("fundo_aq", "")).upper().strip()
+        mod_n    = poly.get("mod_n")
+        tur_n    = poly.get("tur_n")
+        lote_n   = norm_lote(str(poly.get("lote_name", "")))
+        key      = f"{fundo_aq}|{mod_n}|{tur_n}|{lote_n}"
+        if key in keys_con_datos:
+            polygons_con_datos.append(poly)
+
 from collections import defaultdict
 
 turnos_agrupados = defaultdict(lambda: {
