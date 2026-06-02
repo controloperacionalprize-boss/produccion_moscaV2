@@ -1321,13 +1321,11 @@ with col_png:
     if st.button("🖼️ PNG", use_container_width=True, key="btn_png"):
         with st.spinner("Capturando mapa..."):
             tmp_html = None
+            js_log_data = {}  # ← Aquí guardaremos los logs internos del mapa
             try:
-                from playwright.sync_api import sync_playwright
+                import platform
                 from PIL import Image
                 import io, tempfile, os
-
-                # ── Instalar browsers si no están (primera vez en cloud) ──
-                os.system("playwright install chromium")
 
                 # ── Guardar HTML temporal ──
                 tmp_html = tempfile.NamedTemporaryFile(
@@ -1336,122 +1334,252 @@ with col_png:
                 tmp_html.write(html_with_data)
                 tmp_html.close()
 
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(
-                        headless=True,
-                        args=[
-                            "--no-sandbox",
-                            "--disable-dev-shm-usage",
-                            "--disable-gpu",
-                            "--disable-web-security",
-                            "--allow-file-access-from-files",
-                        ]
-                    )
-                    page = browser.new_page(
-                        viewport={"width": 1920, "height": 1080},
-                        device_scale_factor=2,
-                    )
+                png_bytes = None
 
-                    # ── Cargar HTML ──
-                    page.goto(f"file://{tmp_html.name}", wait_until="networkidle")
-                    page.wait_for_timeout(3000)
+                if platform.system() == "Windows":
+                    # ── LOCAL: usar Selenium ──
+                    from selenium import webdriver
+                    from selenium.webdriver.chrome.options import Options
+                    from selenium.webdriver.chrome.service import Service
+                    from selenium.webdriver.common.by import By
+                    from webdriver_manager.chrome import ChromeDriverManager
+                    import time
 
-                    # ── Activar modo PNG ──
+                    opts = Options()
+                    opts.add_argument("--headless=new")
+                    opts.add_argument("--no-sandbox")
+                    opts.add_argument("--disable-dev-shm-usage")
+                    opts.add_argument("--disable-gpu")
+                    opts.add_argument("--window-size=1920,1080")
+                    opts.add_argument("--force-device-scale-factor=2")
+
+                    service = Service(ChromeDriverManager().install())
+                    driver  = webdriver.Chrome(service=service, options=opts)
+                    driver.set_window_size(1920, 1080)
+                    driver.get(f"file:///{tmp_html.name}")
+                    time.sleep(5)
+
                     try:
-                        page.evaluate("activarModoPNGGeneral()")
-                    except Exception:
-                        pass
-
-                    page.wait_for_timeout(2000)
-
-                    # ── Fix específico para emojis 🪰 en Playwright headless ──
-                    try:
-                        page.evaluate("""
-                            () => {
-                                // 1. Detener animación flotar que bloquea render en headless
-                                const style = document.createElement('style');
-                                style.textContent = `
-                                    * { 
-                                        animation: none !important; 
-                                        transition: none !important;
-                                    }
-                                    @keyframes flotar { 
-                                        0%, 50%, 100% { transform: translateX(-50%) translateY(0px); }
-                                    }
-                                `;
-                                document.head.appendChild(style);
-
-                                // 2. Forzar tamaño visible de emojis mosca (en PNG mode son 7px — muy chico)
-                                document.querySelectorAll('.leaflet-marker-icon div').forEach(el => {
-                                    const txt = el.textContent || '';
-                                    if (txt.includes('🪰')) {
-                                        el.style.fontSize    = '20px';
-                                        el.style.animation   = 'none';
-                                        el.style.visibility  = 'visible';
-                                        el.style.opacity     = '1';
-                                        el.style.display     = 'block';
-                                        el.style.transform   = 'none';
-                                    }
-                                });
-
-                                // 3. Forzar visibilidad de todos los markers
-                                document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
-                                    el.style.visibility = 'visible';
-                                    el.style.opacity    = '1';
-                                    el.style.display    = 'block';
-                                });
-
-                                // 4. Invalidar mapa para forzar redibujado
-                                if (window.map) window.map.invalidateSize(true);
+                        driver.execute_script("""
+                            try {
+                                activarModoPNGGeneral();
+                            } catch(e) {
+                                console.error('Error PNG modo:', e);
                             }
                         """)
+                        time.sleep(2)
+
+                        # ← FORZAR ZOOM Y EXTRAER TELEMETRÍA A STREAMLIT
+                        js_log_data = driver.execute_script("""
+                            let res = { motor: 'Selenium (Windows)', capas_con_bounds: 0, bounds_detectados: null, zoom_inicial: null, zoom_final: null, error_js: null };
+                            try {
+                                if (!window.map) {
+                                    res.error_js = 'window.map no está definido en el HTML';
+                                    return res;
+                                }
+                                res.zoom_inicial = window.map.getZoom();
+                                
+                                let bounds = null;
+                                window.map.eachLayer(function(layer) {
+                                    if (layer.getBounds && typeof layer.getBounds === 'function') {
+                                        try {
+                                            const b = layer.getBounds();
+                                            if (b && b.isValid()) {
+                                                const c = b.getCenter();
+                                                // Ignorar puntos corruptos o vacíos en el origen [0,0] que arruinan el zoom
+                                                if (Math.abs(c.lat) > 0.5 && Math.abs(c.lng) > 0.5) {
+                                                    res.capas_con_bounds++;
+                                                    bounds = bounds ? bounds.extend(b) : b;
+                                                }
+                                            }
+                                        } catch(err) {}
+                                    }
+                                });
+                                
+                                if (bounds && bounds.isValid()) {
+                                    res.bounds_detectados = [
+                                        [bounds.getSouthWest().lat, bounds.getSouthWest().lng],
+                                        [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
+                                    ];
+                                    
+                                    // Ajustar al recuadro con margen moderado
+                                    window.map.fitBounds(bounds, { padding: [10, 10] });
+                                    window.map.setZoom(window.map.getZoom() + 1);
+                                    // Sin offset adicional: fitBounds ya eligió el zoom óptimo
+                                    let zActual = window.map.getZoom();
+                                    
+                                    res.zoom_final = window.map.getZoom();
+                                } else {
+                                    res.error_js = 'No se encontraron capas con límites geométricos válidos.';
+                                }
+                            } catch(e) {
+                                res.error_js = e.message;
+                            }
+                            return res;
+                        """)
+                        time.sleep(3)
+
+                    except Exception as e:
+                        js_log_data = {"error_selenium_python": str(e)}
+
+                    # Fix emoji/animacion
+                    try:
+                        driver.execute_script("""
+                            const style = document.createElement('style');
+                            style.textContent = '* { animation: none !important; }';
+                            document.head.appendChild(style);
+                            document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+                                el.style.visibility = 'visible';
+                                el.style.opacity = '1';
+                            });
+                            if (window.map) window.map.invalidateSize(true);
+                        """)
+                        time.sleep(2)
                     except Exception:
                         pass
 
-                    # ── Esperar tiles ──
                     try:
-                        page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
+                        map_el    = driver.find_element(By.ID, "mapContainer")
+                        png_bytes = map_el.screenshot_as_png
                     except Exception:
-                        pass
+                        png_bytes = driver.get_screenshot_as_png()
 
-                    # ── Esperar markers ──
-                    try:
-                        page.wait_for_selector(".leaflet-marker-icon", timeout=10000)
-                    except Exception:
-                        pass
+                    driver.quit()
 
-                    # ── Pausa final ──
-                    page.wait_for_timeout(5000)
-
-                    # ── Capturar ──
-                    try:
-                        map_el    = page.locator("#mapContainer")
-                        png_bytes = map_el.screenshot()
-                    except Exception:
-                        png_bytes = page.screenshot(full_page=False)
-
-                    browser.close()
-
-                # ── Mostrar resolución ──
-                img = Image.open(io.BytesIO(png_bytes))
-                st.sidebar.caption(f"📐 {img.width}×{img.height}px")
-
-                # ── Subir PNG a GitHub ──
-                ok_png, res_png = _subir_png_a_github(png_bytes)
-                if ok_png:
-                    st.sidebar.success("✅ PNG guardado en GitHub")
-                    st.sidebar.markdown(f"[🔗 Ver PNG]({res_png})", unsafe_allow_html=True)
                 else:
-                    st.sidebar.warning(f"PNG local OK, GitHub falló: {res_png}")
+                    # ── CLOUD: usar Playwright ──
+                    from playwright.sync_api import sync_playwright
+                    os.system("playwright install chromium")
 
-                # ── Descarga local ──
-                st.sidebar.download_button(
-                    label="⬇️ Descargar PNG",
-                    data=png_bytes,
-                    file_name=f"mapa_mosca_{_build_sufijo()}.png",
-                    mime="image/png",
-                    key="btn_dl_png"
-                )
+                    with sync_playwright() as p:
+                        browser = p.chromium.launch(
+                            headless=True,
+                            args=[
+                                "--no-sandbox",
+                                "--disable-dev-shm-usage",
+                                "--disable-gpu",
+                                "--disable-web-security",
+                                "--allow-file-access-from-files",
+                            ]
+                        )
+                        page = browser.new_page(
+                            viewport={"width": 1920, "height": 1080},
+                            device_scale_factor=2,
+                        )
+                        page.goto(f"file://{tmp_html.name}", wait_until="networkidle")
+                        page.wait_for_timeout(3000)
+
+                        try:
+                            page.evaluate("""
+                                () => { activarModoPNGGeneral(); }
+                            """)
+                        except Exception:
+                            pass
+
+                        page.wait_for_timeout(2000)
+
+                        # ← FORZAR ZOOM Y EXTRAER TELEMETRÍA DESDE PLAYWRIGHT
+                        try:
+                            js_log_data = page.evaluate("""
+                                () => {
+                                    let res = { motor: 'Playwright (Cloud)', capas_con_bounds: 0, bounds_detectados: null, zoom_inicial: null, zoom_final: null, error_js: null };
+                                    try {
+                                        if (!window.map) {
+                                            res.error_js = 'window.map no está definido';
+                                            return res;
+                                        }
+                                        res.zoom_inicial = window.map.getZoom();
+                                        
+                                        let bounds = null;
+                                        window.map.eachLayer(function(layer) {
+                                            if (layer.getBounds && typeof layer.getBounds === 'function') {
+                                                try {
+                                                    const b = layer.getBounds();
+                                                    if (b && b.isValid()) {
+                                                        const c = b.getCenter();
+                                                        if (Math.abs(c.lat) > 0.5 && Math.abs(c.lng) > 0.5) {
+                                                            res.capas_con_bounds++;
+                                                            bounds = bounds ? bounds.extend(b) : b;
+                                                        }
+                                                    }
+                                                } catch(err) {}
+                                            }
+                                        });
+                                        if (bounds && bounds.isValid()) {
+                                            res.bounds_detectados = [
+                                                [bounds.getSouthWest().lat, bounds.getSouthWest().lng],
+                                                [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
+                                            ];
+                                            window.map.fitBounds(bounds, { padding: [10, 10] }); // Margen moderado
+                                            res.zoom_final = window.map.getZoom();
+                                        } else {
+                                            res.error_js = 'No se encontraron límites válidos';
+                                        }
+                                    } catch(e) {
+                                        res.error_js = e.message;
+                                    }
+                                    return res;
+                                }
+                            """)
+                        except Exception as e:
+                            js_log_data = {"error_playwright_python": str(e)}
+
+                        page.wait_for_timeout(3000)
+
+                        try:
+                            page.evaluate("""
+                                () => {
+                                    const style = document.createElement('style');
+                                    style.textContent = '* { animation: none !important; }';
+                                    document.head.appendChild(style);
+                                    document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+                                        el.style.visibility = 'visible';
+                                        el.style.opacity    = '1';
+                                        el.style.display    = 'block';
+                                    });
+                                    if (window.map) window.map.invalidateSize(true);
+                                }
+                            """)
+                        except Exception:
+                            pass
+
+                        try:
+                            page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
+                        except Exception:
+                            pass
+
+                        page.wait_for_timeout(4000)
+
+                        try:
+                            png_bytes = page.locator("#mapContainer").screenshot()
+                        except Exception:
+                            png_bytes = page.screenshot(full_page=False)
+
+                        browser.close()
+
+                # ── RENDERIZAR LOGS EN LA INTERFAZ DE STREAMLIT ──
+                if js_log_data:
+                    st.sidebar.info("📊 Telemetría Interna del Mapa:")
+                    st.sidebar.json(js_log_data)
+
+                if png_bytes:
+                    img = Image.open(io.BytesIO(png_bytes))
+                    st.sidebar.caption(f"📐 {img.width}×{img.height}px")
+
+                    ok_png, res_png = _subir_png_a_github(png_bytes)
+                    if ok_png:
+                        st.sidebar.success("✅ PNG guardado en GitHub")
+                        st.sidebar.markdown(f"[🔗 Ver PNG]({res_png})", unsafe_allow_html=True)
+                    else:
+                        st.sidebar.warning(f"PNG local OK, GitHub falló: {res_png}")
+
+                    st.sidebar.download_button(
+                        label="⬇️ Descargar PNG",
+                        data=png_bytes,
+                        file_name=f"mapa_mosca_{_build_sufijo()}.png",
+                        mime="image/png",
+                        key="btn_dl_png"
+                    )
 
             except Exception as e:
                 st.sidebar.error(f"Error generando PNG: {e}")

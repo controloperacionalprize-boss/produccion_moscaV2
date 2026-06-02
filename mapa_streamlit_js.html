@@ -319,34 +319,34 @@
 <body>
 
     <div id="mapContainer"></div>
-   <div class="layer-control-panel" id="layerControlPanel">
-    <div class="layer-control-title">🗂️ Capas</div>
+    <div class="layer-control-panel" id="layerControlPanel">
+        <div class="layer-control-title">🗂️ Capas</div>
 
-    <div class="layer-control-item" id="item_trampas">
-        <input type="checkbox" id="chk_trampas" checked>
-        <label for="chk_trampas">📍 Trampas</label>
-    </div>
+        <div class="layer-control-item" id="item_trampas">
+            <input type="checkbox" id="chk_trampas" checked>
+            <label for="chk_trampas">📍 Trampas</label>
+        </div>
 
-    <div class="layer-control-item" id="item_etiquetas">
-        <input type="checkbox" id="chk_etiquetas" checked>
-        <label for="chk_etiquetas">🏷️ Etiquetas (no rojas)</label>
-    </div>
+        <div class="layer-control-item" id="item_etiquetas">
+            <input type="checkbox" id="chk_etiquetas" checked>
+            <label for="chk_etiquetas">🏷️ Etiquetas (no rojas)</label>
+        </div>
 
-    <div class="layer-control-item" id="item_alertas">
-        <input type="checkbox" id="chk_alertas" checked>
-        <label for="chk_alertas">🔴 Panel Alertas</label>
-    </div>
+        <div class="layer-control-item" id="item_alertas">
+            <input type="checkbox" id="chk_alertas" checked>
+            <label for="chk_alertas">🔴 Panel Alertas</label>
+        </div>
 
-    <div class="layer-control-item" id="item_vectores">
-        <input type="checkbox" id="chk_vectores" checked>
-        <label for="chk_vectores">🧭 Vectores de Propagación</label>
-    </div>
+        <div class="layer-control-item" id="item_vectores">
+            <input type="checkbox" id="chk_vectores" checked>
+            <label for="chk_vectores">🧭 Vectores de Propagación</label>
+        </div>
 
-    <div class="layer-control-item" id="item_curvas" style="display:none;">
-        <input type="checkbox" id="chk_curvas" checked>
-        <label for="chk_curvas">➖ Curvas de Nivel</label>
+        <div class="layer-control-item" id="item_curvas" style="display:none;">
+            <input type="checkbox" id="chk_curvas" checked>
+            <label for="chk_curvas">➖ Curvas de Nivel</label>
+        </div>
     </div>
-</div>
     </div>
     <div class="map-info">
         <div><strong id="recordCount">0</strong> registros</div>
@@ -651,11 +651,11 @@
             contornos.fills.forEach(f => {
                 if (!f.coords || f.coords.length < 3) return;
                 L.polygon(f.coords, {
-                    color:       f.color,
-                    fillColor:   f.color,
+                    color: f.color,
+                    fillColor: f.color,
                     fillOpacity: opacidad,
-                    weight:      1.5,       // ← subir de 0.8 a 1.5
-                    opacity:     1,
+                    weight: 1.5,       // ← subir de 0.8 a 1.5
+                    opacity: 1,
                     interactive: false,
                 }).addTo(fillLayer);
             });
@@ -696,8 +696,8 @@ function renderPuntos() {
     const badgeLayer = L.featureGroup();
 
     lotes.forEach(d => {
-        const color   = getColorByCapturas(d.capturas);
-        const esRojo  = d.capturas > 2;
+        const color  = getColorByCapturas(d.capturas);
+        const esRojo = d.capturas > 2;
 
         const turnoLabel = d.turno
             ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
@@ -723,64 +723,79 @@ function renderPuntos() {
             </div>
         `;
 
-        if (esRojo) {
-            const moscaIcon = L.divIcon({
-                className: "",
-                html: `
-                    <div style="display:flex;flex-direction:column;
-                                align-items:center;gap:0px;">
-                        <div style="font-size:${modoSoloAlertas ? '7px' : '18px'};
-                            animation:flotar 1.2s ease-in-out infinite;
-                            filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
-                        <div style="
-                            background:${modoSoloAlertas ? 'transparent' : '#FF0000'};
-                            color:${modoSoloAlertas ? '#CC0000' : '#fff'};
-                            padding:${modoSoloAlertas ? '0' : '3px 10px'};
-                            border-radius:${modoSoloAlertas ? '0' : '14px'};
-                            font-size:${modoSoloAlertas ? '7px' : '11px'};
-                            font-weight:900;
-                            border:${modoSoloAlertas ? 'none' : '2px solid rgba(255,255,255,0.85)'};
-                            box-shadow:${modoSoloAlertas ? 'none' : '0 2px 8px rgba(0,0,0,0.5)'};
-                            text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
-                            white-space:nowrap;text-align:center;line-height:1.4;
-                        ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
-                    </div>
-                `,
-                iconSize:    modoSoloAlertas ? [45, 22] : [80, 46],
-                iconAnchor:  modoSoloAlertas ? [22, 22] : [40, 46],
-                popupAnchor: [0, modoSoloAlertas ? -24 : -48],
-            });
-            L.marker([d.lat, d.lon], { icon: moscaIcon })
+        // ─── MODO PNG: SOLO TEXTO LIMPIO ───
+        if (modoSoloAlertas) {
+            const textColor = esRojo ? "#E63946" : "#000000";
+            const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+
+            const cleanIcon = L.divIcon({
+    className: "",
+    html: `<div style="color:${textColor};font-weight:900;font-size:9px;text-shadow:0 1px 3px rgba(255,255,255,0.8);">${textLabel}</div>`,
+    //                                                    ↑ CAMBIAR DE 12px A 9px
+    iconSize:    [80, 20],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
+    iconAnchor:  [40, 10],
+    popupAnchor: [0, -16],
+});
+            L.marker([d.lat, d.lon], { icon: cleanIcon })
                 .bindPopup(popup)
                 .addTo(badgeLayer);
 
+        // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
         } else {
-            if (window._etiquetasVisible === false) return;
+            if (esRojo) {
+                const moscaIcon = L.divIcon({
+                    className: "",
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
+                            <div style="font-size:18px;
+                                animation:flotar 1.2s ease-in-out infinite;
+                                filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
+                            <div style="
+                                background:#FF0000;
+                                color:#fff;
+                                padding:3px 10px;
+                                border-radius:14px;
+                                font-size:11px;
+                                font-weight:900;
+                                border:2px solid rgba(255,255,255,0.85);
+                                box-shadow:0 2px 8px rgba(0,0,0,0.5);
+                                white-space:nowrap;text-align:center;line-height:1.4;
+                            ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
+                        </div>
+                    `,
+                    iconSize:    [80, 46],
+                    iconAnchor:  [40, 46],
+                    popupAnchor: [0, -48],
+                });
+                L.marker([d.lat, d.lon], { icon: moscaIcon })
+                    .bindPopup(popup)
+                    .addTo(badgeLayer);
 
-            const badgeIcon = L.divIcon({
-                className: "turno-label",
-                html: `
-                    <div style="
-                        background:${modoSoloAlertas ? 'transparent' : color};
-                        color:${modoSoloAlertas ? '#000' : '#fff'};
-                        padding:${modoSoloAlertas ? '0' : '3px 10px'};
-                        border-radius:${modoSoloAlertas ? '0' : '14px'};
-                        font-size:${modoSoloAlertas ? '7px' : '11px'};
-                        font-weight:${modoSoloAlertas ? '900' : '800'};
-                        border:${modoSoloAlertas ? 'none' : '2px solid rgba(255,255,255,0.85)'};
-                        box-shadow:${modoSoloAlertas ? 'none' : '0 2px 6px rgba(0,0,0,0.45)'};
-                        text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
-                        white-space:nowrap;text-align:center;
-                        line-height:1.4;cursor:pointer;
-                    ">${modLabel}-${turnoLabel}</div>
-                `,
-                iconSize:    modoSoloAlertas ? [45, 18] : [80, 24],
-                iconAnchor:  modoSoloAlertas ? [22, 9]  : [40, 12],
-                popupAnchor: [0, modoSoloAlertas ? -10 : -16],
-            });
-            L.marker([d.lat, d.lon], { icon: badgeIcon })
-                .bindPopup(popup)
-                .addTo(badgeLayer);
+            } else {
+                const badgeIcon = L.divIcon({
+                    className: "turno-label",
+                    html: `
+                        <div style="
+                            background:${color};
+                            color:#fff;
+                            padding:3px 10px;
+                            border-radius:14px;
+                            font-size:11px;
+                            font-weight:800;
+                            border:2px solid rgba(255,255,255,0.85);
+                            box-shadow:0 2px 6px rgba(0,0,0,0.45);
+                            white-space:nowrap;text-align:center;
+                            line-height:1.4;cursor:pointer;
+                        ">${modLabel}-${turnoLabel}</div>
+                    `,
+                    iconSize:    [80, 24],
+                    iconAnchor:  [40, 12],
+                    popupAnchor: [0, -16],
+                });
+                L.marker([d.lat, d.lon], { icon: badgeIcon })
+                    .bindPopup(popup)
+                    .addTo(badgeLayer);
+            }
         }
     });
 
@@ -810,63 +825,88 @@ function renderPuntos() {
             </div>
         `;
 
-        if (esRojo) {
-            const moscaIconZoom = L.divIcon({
-                className: "",
-                html: `
-                    <div style="display:flex;flex-direction:column;
-                                align-items:center;gap:0px;">
-                        <div style="font-size:${modoSoloAlertas ? '7px' : '16px'};
-                            animation:flotar 1.2s ease-in-out infinite;
-                            filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
-                        <div style="
-                            background:${modoSoloAlertas ? 'transparent' : '#FF0000'};
-                            color:${modoSoloAlertas ? '#CC0000' : '#fff'};
-                            padding:${modoSoloAlertas ? '0' : '2px 7px'};
-                            border-radius:${modoSoloAlertas ? '0' : '10px'};
-                            font-size:${modoSoloAlertas ? '7px' : '10px'};
-                            font-weight:900;
-                            border:${modoSoloAlertas ? 'none' : '1.5px solid rgba(255,255,255,0.85)'};
-                            box-shadow:${modoSoloAlertas ? 'none' : '0 1px 4px rgba(0,0,0,0.4)'};
-                            text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
-                            white-space:nowrap;text-align:center;line-height:1.4;
-                        ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
-                    </div>
-                `,
-                iconSize:    modoSoloAlertas ? [42, 20] : [100, 40],
-                iconAnchor:  modoSoloAlertas ? [21, 20] : [50,  40],
-                popupAnchor: [0, modoSoloAlertas ? -22 : -42],
-            });
-            L.marker([d.lat, d.lon], { icon: moscaIconZoom })
+        // ─── MODO PNG: SOLO TEXTO LIMPIO ───
+        if (modoSoloAlertas) {
+            const textColor = esRojo ? "#E63946" : "#000000";
+            const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+
+            // Solo círculo si es rojo
+            if (esRojo) {
+                L.circleMarker([d.lat, d.lon], {
+                    radius: 7,
+                    fillColor: "#E63946",
+                    color: '#000',
+                    weight: 1.5,
+                    opacity: 1,
+                    fillOpacity: 0.3
+                }).bindPopup(popup).addTo(circleLayer);
+            }
+
+            const cleanLabel = L.divIcon({
+    className: "",
+    html: `<div style="color:${textColor};font-weight:900;font-size:8px;text-shadow:0 1px 2px rgba(255,255,255,0.8);">${textLabel}</div>`,
+    //                                                    ↑ CAMBIAR DE 11px A 8px
+    iconSize:    [75, 16],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
+    iconAnchor:  [37, 8],
+    popupAnchor: [0, -12],
+});
+            L.marker([d.lat, d.lon], { icon: cleanLabel, interactive: true })
                 .bindPopup(popup)
                 .addTo(circleLayer);
 
+        // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
         } else {
-            if (window._etiquetasVisible === false) return;
+            if (esRojo) {
+                const moscaIconZoom = L.divIcon({
+                    className: "",
+                    html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
+                            <div style="font-size:16px;
+                                animation:flotar 1.2s ease-in-out infinite;
+                                filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
+                            <div style="
+                                background:#FF0000;
+                                color:#fff;
+                                padding:2px 7px;
+                                border-radius:10px;
+                                font-size:10px;
+                                font-weight:900;
+                                border:1.5px solid rgba(255,255,255,0.85);
+                                box-shadow:0 1px 4px rgba(0,0,0,0.4);
+                                white-space:nowrap;text-align:center;line-height:1.4;
+                            ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
+                        </div>
+                    `,
+                    iconSize:    [100, 40],
+                    iconAnchor:  [50, 40],
+                    popupAnchor: [0, -42],
+                });
+                L.marker([d.lat, d.lon], { icon: moscaIconZoom })
+                    .bindPopup(popup)
+                    .addTo(circleLayer);
 
-            const labelIcon = L.divIcon({
-                className: "turno-label",
-                html: `
-                    <div style="
-                        background:${modoSoloAlertas ? 'transparent' : color};
-                        color:${modoSoloAlertas ? '#000' : '#fff'};                        
-                        padding:${modoSoloAlertas ? '0' : '2px 7px'};
-                        border-radius:${modoSoloAlertas ? '0' : '10px'};
-                        font-size:${modoSoloAlertas ? '7px' : '10px'};
-                        font-weight:${modoSoloAlertas ? '900' : '800'};
-                        border:${modoSoloAlertas ? 'none' : '1.5px solid rgba(255,255,255,0.85)'};
-                        box-shadow:${modoSoloAlertas ? 'none' : '0 1px 4px rgba(0,0,0,0.4)'};
-                        text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
-                        white-space:nowrap;text-align:center;
-                        line-height:1.4;cursor:pointer;
-                    ">${modLabel}-${turnoLabel}</div>
-                `,
-                iconSize:    modoSoloAlertas ? [42, 16] : [80, 20],
-                iconAnchor:  modoSoloAlertas ? [21, 8]  : [40, 28],
-                popupAnchor: [0, modoSoloAlertas ? -10 : -30],
-            });
+            } else {
+                const labelIcon = L.divIcon({
+                    className: "turno-label",
+                    html: `
+                        <div style="
+                            background:${color};
+                            color:#fff;
+                            padding:2px 7px;
+                            border-radius:10px;
+                            font-size:10px;
+                            font-weight:800;
+                            border:1.5px solid rgba(255,255,255,0.85);
+                            box-shadow:0 1px 4px rgba(0,0,0,0.4);
+                            white-space:nowrap;text-align:center;
+                            line-height:1.4;cursor:pointer;
+                        ">${modLabel}-${turnoLabel}</div>
+                    `,
+                    iconSize:    [80, 20],
+                    iconAnchor:  [40, 28],
+                    popupAnchor: [0, -30],
+                });
 
-            if (!modoSoloAlertas) {
                 L.circleMarker([d.lat, d.lon], {
                     radius:      6,
                     fillColor:   color,
@@ -875,11 +915,11 @@ function renderPuntos() {
                     opacity:     1,
                     fillOpacity: 0.9
                 }).bindPopup(popup).addTo(circleLayer);
-            }
 
-            L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
-                .bindPopup(popup)
-                .addTo(circleLayer);
+                L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
+                    .bindPopup(popup)
+                    .addTo(circleLayer);
+            }
         }
     });
 
@@ -997,11 +1037,11 @@ const ZOOM_CIRCULOS = 16;
             contornos.fills.forEach(f => {
                 if (!f.coords || f.coords.length < 3) return;
                 L.polygon(f.coords, {
-                    color:       f.color,
-                    fillColor:   f.color,
+                    color: f.color,
+                    fillColor: f.color,
                     fillOpacity: 0.75,
-                    weight:      1.5,       // ← subir de 0.8 a 1.5
-                    opacity:     1,
+                    weight: 1.5,       // ← subir de 0.8 a 1.5
+                    opacity: 1,
                     interactive: false,
                 }).addTo(isolineLayer);
             });
@@ -1333,171 +1373,172 @@ const ZOOM_CIRCULOS = 16;
         // ============================================================
         // CONTROL DE CAPAS — respeta configuración Python
         // ============================================================
-function initLayerControls() {
-    const cfg  = streamlitData.config || {};
-    const modo = cfg.modo_color || "Normal";
+        function initLayerControls() {
+            const cfg = streamlitData.config || {};
+            const modo = cfg.modo_color || "Normal";
 
-    // ── Curvas de Nivel ──
-    const itemCurvas = document.getElementById('item_curvas');
-    if (modo === "Curvas de Nivel") {
-        itemCurvas.style.display = 'flex';
-    } else {
-        itemCurvas.style.display = 'none';
-    }
+            // ── Curvas de Nivel ──
+            const itemCurvas = document.getElementById('item_curvas');
+            if (modo === "Curvas de Nivel") {
+                itemCurvas.style.display = 'flex';
+            } else {
+                itemCurvas.style.display = 'none';
+            }
 
-    // ── Vectores ──
-    const itemVectores = document.getElementById('item_vectores');
-    if (cfg.mostrar_vectores) {
-        itemVectores.style.display = 'flex';
-    } else {
-        itemVectores.style.display = 'none';
-    }
+            // ── Vectores ──
+            const itemVectores = document.getElementById('item_vectores');
+            if (cfg.mostrar_vectores) {
+                itemVectores.style.display = 'flex';
+            } else {
+                itemVectores.style.display = 'none';
+            }
 
-    // ── TRAMPAS ──
-    document.getElementById('chk_trampas').addEventListener('change', function () {
-        window._trampasVisible = this.checked;
-        if (this.checked) {
-            _actualizarCapasPorZoom();
-        } else {
-            if (window._badgeLayer  && map.hasLayer(window._badgeLayer))
-                map.removeLayer(window._badgeLayer);
-            if (window._circleLayer && map.hasLayer(window._circleLayer))
-                map.removeLayer(window._circleLayer);
-        }
-    });
+            // ── TRAMPAS ──
+            document.getElementById('chk_trampas').addEventListener('change', function () {
+                window._trampasVisible = this.checked;
+                if (this.checked) {
+                    _actualizarCapasPorZoom();
+                } else {
+                    if (window._badgeLayer && map.hasLayer(window._badgeLayer))
+                        map.removeLayer(window._badgeLayer);
+                    if (window._circleLayer && map.hasLayer(window._circleLayer))
+                        map.removeLayer(window._circleLayer);
+                }
+            });
 
-    // ── ETIQUETAS NO ROJAS ──
-    document.getElementById('chk_etiquetas').addEventListener('change', function () {
-        window._etiquetasVisible = this.checked;
-        // Reconstruir markers respetando el nuevo estado
-        if (window._badgeLayer) {
-            map.removeLayer(window._badgeLayer);
-            window._badgeLayer = null;
-        }
-        if (window._circleLayer) {
-            map.removeLayer(window._circleLayer);
-            window._circleLayer = null;
-        }
-        renderPuntos();
-    });
+            // ── ETIQUETAS NO ROJAS ──
+            document.getElementById('chk_etiquetas').addEventListener('change', function () {
+                window._etiquetasVisible = this.checked;
+                // Reconstruir markers respetando el nuevo estado
+                if (window._badgeLayer) {
+                    map.removeLayer(window._badgeLayer);
+                    window._badgeLayer = null;
+                }
+                if (window._circleLayer) {
+                    map.removeLayer(window._circleLayer);
+                    window._circleLayer = null;
+                }
+                renderPuntos();
+            });
 
-    // ── PANEL ALERTAS ──
-    document.getElementById('chk_alertas').addEventListener('change', function () {
-        const alertPanel = document.getElementById('alertPanel');
-        if (!alertPanel) return;
-        alertPanel.style.display = this.checked ? 'block' : 'none';
-    });
+            // ── PANEL ALERTAS ──
+            document.getElementById('chk_alertas').addEventListener('change', function () {
+                const alertPanel = document.getElementById('alertPanel');
+                if (!alertPanel) return;
+                alertPanel.style.display = this.checked ? 'block' : 'none';
+            });
 
-    // ── VECTORES ──
-    document.getElementById('chk_vectores').addEventListener('change', function () {
-        if (!window._vectorLayer) return;
-        if (this.checked) {
-            window._vectorLayer.addTo(map);
-        } else {
-            map.removeLayer(window._vectorLayer);
-        }
-    });
+            // ── VECTORES ──
+            document.getElementById('chk_vectores').addEventListener('change', function () {
+                if (!window._vectorLayer) return;
+                if (this.checked) {
+                    window._vectorLayer.addTo(map);
+                } else {
+                    map.removeLayer(window._vectorLayer);
+                }
+            });
 
-    // ── CURVAS DE NIVEL ──
-    document.getElementById('chk_curvas').addEventListener('change', function () {
-        if (!isolineLayer) return;
-        isolineLayer.eachLayer(function (layer) {
-            if (layer instanceof L.FeatureGroup) {
-                layer.eachLayer(function (sublayer) {
-                    if (sublayer instanceof L.Polyline && !(sublayer instanceof L.Polygon)) {
-                        sublayer.setStyle({ opacity: document.getElementById('chk_curvas').checked ? 1 : 0 });
+            // ── CURVAS DE NIVEL ──
+            document.getElementById('chk_curvas').addEventListener('change', function () {
+                if (!isolineLayer) return;
+                isolineLayer.eachLayer(function (layer) {
+                    if (layer instanceof L.FeatureGroup) {
+                        layer.eachLayer(function (sublayer) {
+                            if (sublayer instanceof L.Polyline && !(sublayer instanceof L.Polygon)) {
+                                sublayer.setStyle({ opacity: document.getElementById('chk_curvas').checked ? 1 : 0 });
+                            }
+                        });
                     }
                 });
-            }
-        });
-    });
-}
+            });
+        }
         // ============================================================
         // MODO PNG — oculta etiquetas no rojas, reconstruye capas
         // ============================================================
-function _prepararModoPNG() {
-    modoSoloAlertas = true;
+        function _prepararModoPNG() {
+            modoSoloAlertas = true;
 
-    if (window._badgeLayer) {
-        map.removeLayer(window._badgeLayer);
-        window._badgeLayer = null;
-    }
-    if (window._circleLayer) {
-        map.removeLayer(window._circleLayer);
-        window._circleLayer = null;
-    }
-
-    renderPuntos();
-
-    // ── Ocultar solo el panel de capas y el info ──
-    const panel = document.getElementById('layerControlPanel');
-    const info  = document.querySelector('.map-info');
-    if (panel) panel.style.display = 'none';
-    if (info)  info.style.display  = 'none';
-
-    // ── Alertas y leyenda SE MANTIENEN visibles en PNG ──
-    const alert  = document.getElementById('alertPanel');
-    const legend = document.getElementById('legendContainer');
-    if (alert)  alert.style.display  = 'block';
-    if (legend) legend.style.display = 'block';
-}
-function activarModoPNGGeneral() {
-    _prepararModoPNG();
-
-    const bounds = L.latLngBounds();
-
-    // ── Usar directamente los lotes con data (ya tienen lat/lon reales) ──
-    (streamlitData.lotes || []).forEach(d => {
-        if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
-            bounds.extend([d.lat, d.lon]);
-        }
-    });
-
-    // Fallback con data raw
-    if (!bounds.isValid()) {
-        (streamlitData.data || []).forEach(d => {
-            if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
-                bounds.extend([d.lat, d.lon]);
+            if (window._badgeLayer) {
+                map.removeLayer(window._badgeLayer);
+                window._badgeLayer = null;
             }
-        });
-    }
+            if (window._circleLayer) {
+                map.removeLayer(window._circleLayer);
+                window._circleLayer = null;
+            }
 
-    // Fallback total: todos los polígonos
-    if (!bounds.isValid() && polygonLayer) {
-        const allBounds = polygonLayer.getBounds();
-        if (allBounds.isValid()) bounds.extend(allBounds);
-    }
+            renderPuntos();
 
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [80, 80], animate: false });
-    }
+            // ── Ocultar solo el panel de capas y el info ──
+            const panel = document.getElementById('layerControlPanel');
+            const info = document.querySelector('.map-info');
+            if (panel) panel.style.display = 'none';
+            if (info) info.style.display = 'none';
 
-    return true;
-}
-function desactivarModoPNG() {
-    modoSoloAlertas = false;
+            // ── Alertas y leyenda SE MANTIENEN visibles en PNG ──
+            const alert = document.getElementById('alertPanel');
+            const legend = document.getElementById('legendContainer');
+            if (alert) alert.style.display = 'none';   // ← ocultar panel alertas
+            if (legend) legend.style.display = 'block';
+        }
+function activarModoPNGGeneral() {
+            _prepararModoPNG();
 
-    if (window._badgeLayer) {
-        map.removeLayer(window._badgeLayer);
-        window._badgeLayer = null;
-    }
-    if (window._circleLayer) {
-        map.removeLayer(window._circleLayer);
-        window._circleLayer = null;
-    }
+            const bounds = L.latLngBounds();
 
-    renderPuntos();
+            (streamlitData.lotes || []).forEach(d => {
+                if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
+                    bounds.extend([d.lat, d.lon]);
+                }
+            });
 
-    const panel  = document.getElementById('layerControlPanel');
-    const alert  = document.getElementById('alertPanel');
-    const info   = document.querySelector('.map-info');
-    const legend = document.getElementById('legendContainer');
-    if (panel)  panel.style.display  = 'block';
-    if (alert)  alert.style.display  = 'block';
-    if (info)   info.style.display   = 'block';
-    if (legend) legend.style.display = 'block';
-}
-// ============================================================
+            if (!bounds.isValid()) {
+                (streamlitData.data || []).forEach(d => {
+                    if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
+                        bounds.extend([d.lat, d.lon]);
+                    }
+                });
+            }
+
+            if (!bounds.isValid() && polygonLayer) {
+                const allBounds = polygonLayer.getBounds();
+                if (allBounds.isValid()) bounds.extend(allBounds);
+            }
+
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { 
+                    padding: [50, 50],      // ← Reducimos el margen interno para equilibrar
+                    maxZoom: 14,            // ◄── CAMBIA DE 16 A 14 O 15 PARA ALEJAR EL MAPA
+                    animate: false 
+                });
+            }
+
+            return true;
+        }
+        function desactivarModoPNG() {
+            modoSoloAlertas = false;
+
+            if (window._badgeLayer) {
+                map.removeLayer(window._badgeLayer);
+                window._badgeLayer = null;
+            }
+            if (window._circleLayer) {
+                map.removeLayer(window._circleLayer);
+                window._circleLayer = null;
+            }
+
+            renderPuntos();
+
+            const panel = document.getElementById('layerControlPanel');
+            const alert = document.getElementById('alertPanel');
+            const info = document.querySelector('.map-info');
+            const legend = document.getElementById('legendContainer');
+            if (panel) panel.style.display = 'block';
+            if (alert) alert.style.display = 'block';
+            if (info) info.style.display = 'block';
+            if (legend) legend.style.display = 'block';
+        }
+        // ============================================================
         // INICIALIZAR MAPA
         // ============================================================
         async function initMap() {
@@ -1520,7 +1561,7 @@ function desactivarModoPNG() {
                 fadeAnimation: false,
                 markerZoomAnimation: false
             }).setView([-8.345, -79.160], 13);
-
+            window.map = map; // ◄── AGREGA ESTA LÍNEA AQUÍ MISMO
             L.tileLayer(
                 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                 {
