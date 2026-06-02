@@ -827,7 +827,7 @@ df = load_trampas_anexadas()
 @st.cache_data(show_spinner="Descargando KMZ desde GitHub…")
 def download_kmz_from_github() -> bytes | None:
     import urllib.request, urllib.error
-    token   = st.secrets.get("GITHUB_TOKEN", "")
+    token   = st.secrets.get("GITHUB_TOKEN_KMZ", "")  # ← token específico KMZ
     api_url = (
         "https://api.github.com/repos/"
         "controloperacionalprize-boss/CAMPO_RENDIMIENTO/"
@@ -836,17 +836,21 @@ def download_kmz_from_github() -> bytes | None:
     headers = {"Accept": "application/vnd.github.v3.raw"}
     if token:
         headers["Authorization"] = f"token {token}"
+
+    st.sidebar.caption(f"🔑 KMZ Token: {'✅' if token else '❌ vacío'}")
+
     try:
         req  = urllib.request.Request(api_url, headers=headers)
         resp = urllib.request.urlopen(req, timeout=30)
-        return resp.read()
+        data = resp.read()
+        st.sidebar.caption(f"✅ KMZ: {len(data):,} bytes")
+        return data
     except urllib.error.HTTPError as e:
-        st.sidebar.error(f"❌ Error KMZ GitHub ({e.code}): {e.reason}")
+        st.sidebar.error(f"❌ KMZ HTTP {e.code}: {e.reason}")
         return None
     except Exception as ex:
-        st.sidebar.error(f"❌ Error red KMZ: {ex}")
+        st.sidebar.error(f"❌ KMZ Error: {ex}")
         return None
-
 # ── Cargar KMZ: primero GitHub, fallback local ──
 _kmz_bytes = download_kmz_from_github()
 
@@ -858,9 +862,8 @@ if _kmz_bytes:
     kmz_polygons = load_kmz_local(_tmp.name)
     os.unlink(_tmp.name)
 else:
-    # Fallback local (solo en tu PC)
-    _local_kmz = r"C:\Users\lperez.LPEREZPRUEBA\operaciones_control\OPERACIONES\PRODUCCION_MOSCA\data\MODULOS_PRIZE_PAIJAN.kmz"
-    kmz_polygons = load_kmz_local(_local_kmz)
+    st.sidebar.error("❌ KMZ no disponible")
+    kmz_polygons = []
 # ── FILTROS ENCADENADOS ──
 with st.sidebar.expander("🔍 Filtros de datos", expanded=True):
 
