@@ -698,7 +698,6 @@ def load_kmz_local(kmz_path: str = "data/MODULOS_PRIZE_PAIJAN.kmz"):
 # ============================================================
 # CARGAR DATOS EXCEL
 # ============================================================
-@st.cache_data(show_spinner="Cargando datos de trampas…")
 @st.cache_data(show_spinner="Cargando datos de trampas…", ttl=3600)
 def load_trampas_anexadas() -> pd.DataFrame:
     import requests, io
@@ -824,10 +823,44 @@ st.sidebar.markdown("---")
 # ============================================================
 df = load_trampas_anexadas()
 
-kmz_polygons = load_kmz_local(
-    r"C:\Users\lperez.LPEREZPRUEBA\operaciones_control\OPERACIONES\PRODUCCION_MOSCA\data\MODULOS_PRIZE_PAIJAN.kmz"
-)
+# DESPUÉS:
+@st.cache_data(show_spinner="Descargando KMZ desde GitHub…")
+def download_kmz_from_github() -> bytes | None:
+    import urllib.request, urllib.error
+    token   = st.secrets.get("GITHUB_TOKEN", "")
+    api_url = (
+        "https://api.github.com/repos/"
+        "controloperacionalprize-boss/CAMPO_RENDIMIENTO/"
+        "contents/MODULOS_PRIZE_PAIJAN.kmz"
+    )
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    try:
+        req  = urllib.request.Request(api_url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=30)
+        return resp.read()
+    except urllib.error.HTTPError as e:
+        st.sidebar.error(f"❌ Error KMZ GitHub ({e.code}): {e.reason}")
+        return None
+    except Exception as ex:
+        st.sidebar.error(f"❌ Error red KMZ: {ex}")
+        return None
 
+# ── Cargar KMZ: primero GitHub, fallback local ──
+_kmz_bytes = download_kmz_from_github()
+
+if _kmz_bytes:
+    import tempfile, os
+    _tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".kmz")
+    _tmp.write(_kmz_bytes)
+    _tmp.close()
+    kmz_polygons = load_kmz_local(_tmp.name)
+    os.unlink(_tmp.name)
+else:
+    # Fallback local (solo en tu PC)
+    _local_kmz = r"C:\Users\lperez.LPEREZPRUEBA\operaciones_control\OPERACIONES\PRODUCCION_MOSCA\data\MODULOS_PRIZE_PAIJAN.kmz"
+    kmz_polygons = load_kmz_local(_local_kmz)
 # ── FILTROS ENCADENADOS ──
 with st.sidebar.expander("🔍 Filtros de datos", expanded=True):
 
