@@ -1259,7 +1259,7 @@
     <div class="legend-section">
         <div class="legend-section-title">Semáforo por capturas:</div>
         <div class="legend-item">
-            <div class="legend-color" style="background:##90EE90;border:1px solid #aaa;"></div>
+            <div class="legend-color" style="background:#90EE90;border:1px solid #aaa;"></div>
             <div class="legend-label">0 capturas</div>
         </div>
         <div class="legend-item">
@@ -1408,30 +1408,30 @@ margin: 6px 0;
 
             // ── ETIQUETAS NO ROJAS ──
             // ── ETIQUETAS NO ROJAS ──
-document.getElementById('chk_etiquetas').addEventListener('change', function () {
-    window._etiquetasVisible = this.checked;
+            document.getElementById('chk_etiquetas').addEventListener('change', function () {
+                window._etiquetasVisible = this.checked;
 
-    if (window._badgeLayer) {
-        window._badgeLayer.eachLayer(function(layer) {
-            const icon = layer.options?.icon?.options?.html || "";
-            // Ocultar solo los que NO son rojos (no tienen background:#FF0000)
-            if (!icon.includes("background:#FF0000")) {
-                const el = layer.getElement();
-                if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
-            }
-        });
-    }
+                if (window._badgeLayer) {
+                    window._badgeLayer.eachLayer(function (layer) {
+                        const icon = layer.options?.icon?.options?.html || "";
+                        // Ocultar solo los que NO son rojos (no tienen background:#FF0000)
+                        if (!icon.includes("background:#FF0000")) {
+                            const el = layer.getElement();
+                            if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
+                        }
+                    });
+                }
 
-    if (window._circleLayer) {
-        window._circleLayer.eachLayer(function(layer) {
-            const icon = layer.options?.icon?.options?.html || "";
-            if (!icon.includes("background:#FF0000")) {
-                const el = layer.getElement();
-                if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
-            }
-        });
-    }
-});
+                if (window._circleLayer) {
+                    window._circleLayer.eachLayer(function (layer) {
+                        const icon = layer.options?.icon?.options?.html || "";
+                        if (!icon.includes("background:#FF0000")) {
+                            const el = layer.getElement();
+                            if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
+                        }
+                    });
+                }
+            });
 
             // ── PANEL ALERTAS ──
             document.getElementById('chk_alertas').addEventListener('change', function () {
