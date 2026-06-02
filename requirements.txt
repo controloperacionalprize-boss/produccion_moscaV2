@@ -1,0 +1,15 @@
+streamlit>=1.35.0
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+requests>=2.31.0
+lxml>=4.9.0
+folium>=0.15.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+shapely>=2.0.0
+prophet>=1.1.5
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+Pillow>=10.0.0
+msal>=1.24.0

@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            font-family: sans-serif;
+        }
+
+        #mapContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            background: #f8f8f8 !important;
+        }
+
+        .map-info {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 12px;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .map-legend {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 11px;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 240px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 4px;
+        }
+
+        .legend-section {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .legend-section-title {
+            font-weight: bold;
+            font-size: 10px;
+            margin-bottom: 6px;
+            color: #333;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 28px;
+            height: 18px;
+            border: 1px solid #333;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .legend-label {
+            font-size: 11px;
+        }
+
+        .legend-range {
+            font-size: 9px;
+            color: #666;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        #loadingSpinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            text-align: center;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        .turno-label {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+
+        .turno-label::before {
+            display: none !important;
+        }
+
+        .alert-panel {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 11px;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 220px;
+            max-width: 260px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .alert-panel-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #c0392b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .alert-panel-sub {
+            font-size: 9px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .alert-fundo {
+            font-weight: bold;
+            font-size: 11px;
+            color: #333;
+            margin: 8px 0 4px;
+            padding-left: 4px;
+            border-left: 3px solid #e74c3c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .alert-fundo-total {
+            background: #e74c3c;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-size: 10px;
+        }
+
+        .alert-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 4px;
+            border-radius: 4px;
+            margin: 2px 0;
+            background: #fff5f5;
+        }
+
+        .alert-row:hover {
+            background: #fde8e8;
+        }
+
+        .alert-turno {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .alert-cap {
+            background: #e74c3c;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .alert-bar {
+            height: 3px;
+            background: linear-gradient(to right, #e74c3c, #c0392b);
+            border-radius: 2px;
+            margin: 1px 4px 3px;
+        }
+
+        /* ── PANEL DE CAPAS ── */
+        .layer-control-panel {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 12px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 210px;
+            user-select: none;
+        }
+
+        .layer-control-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .layer-control-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .layer-control-item:hover {
+            background: #f5f5f5;
+        }
+
+        .layer-control-item input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: #3498db;
+        }
+
+        .layer-control-item label {
+            cursor: pointer;
+            font-size: 12px;
+            color: #333;
+            flex: 1;
+        }
+
+        .layer-control-item.disabled label {
+            color: #aaa;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes flotar {
+            0% {
+                transform: translateX(-50%) translateY(0px) rotate(-5deg);
+            }
+
+            50% {
+                transform: translateX(-50%) translateY(-6px) rotate(5deg);
+            }
+
+            100% {
+                transform: translateX(-50%) translateY(0px) rotate(-5deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="mapContainer"></div>
+   <div class="layer-control-panel" id="layerControlPanel">
+    <div class="layer-control-title">🗂️ Capas</div>
+
+    <div class="layer-control-item" id="item_trampas">
+        <input type="checkbox" id="chk_trampas" checked>
+        <label for="chk_trampas">📍 Trampas</label>
+    </div>
+
+    <div class="layer-control-item" id="item_etiquetas">
+        <input type="checkbox" id="chk_etiquetas" checked>
+        <label for="chk_etiquetas">🏷️ Etiquetas (no rojas)</label>
+    </div>
+
+    <div class="layer-control-item" id="item_alertas">
+        <input type="checkbox" id="chk_alertas" checked>
+        <label for="chk_alertas">🔴 Panel Alertas</label>
+    </div>
+
+    <div class="layer-control-item" id="item_vectores">
+        <input type="checkbox" id="chk_vectores" checked>
+        <label for="chk_vectores">🧭 Vectores de Propagación</label>
+    </div>
+
+    <div class="layer-control-item" id="item_curvas" style="display:none;">
+        <input type="checkbox" id="chk_curvas" checked>
+        <label for="chk_curvas">➖ Curvas de Nivel</label>
+    </div>
+</div>
+    </div>
+    <div class="map-info">
+        <div><strong id="recordCount">0</strong> registros</div>
+        <div style="font-size:10px; margin-top:4px; color:#666;" id="modoInfo">-</div>
+    </div>
+    <div class="alert-panel" id="alertPanel" style="display:none;"></div>
+    <div class="map-legend" id="legendContainer"></div>
+
+    <div id="loadingSpinner">
+        <div class="spinner"></div>
+        <p id="loadingText">Procesando isolíneas y puntos...</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script>
+
+        const streamlitData = window.streamlitData || {
+            data: [],
+            config: {},
+            recordCount: 0,
+            polygons: []
+        };
+
+        let map = null;
+        let polygonLayer = null;
+        let markerLayer = null;
+        let isolineLayer = null;
+        let allPolygons = [];
+        let modoSoloAlertas = false;  // true solo durante captura PNG
+        // ============================================================
+        // CONFIGURACIÓN DE UMBRALES Y COLORES
+        // ============================================================
+        const UMBRALES = {
+            verde: 1,
+            amarillo: 2,
+            naranja: 4,
+            rojo: 4
+        };
+
+        const COLORES = {
+            verde: "#00C800",
+            amarillo: "#FFD700",
+            naranja: "#FF8C00",
+            rojo: "#E63946"
+        };
+
+        // ============================================================
+        // OBTENER COLOR SEGÚN CAPTURAS
+        // ============================================================
+        function getColorByCapturas(valor) {
+            const v = parseFloat(valor) || 0;
+            if (v === 0) return COLORES.verde;
+            if (v <= 1) return COLORES.amarillo;
+            if (v <= 2) return COLORES.naranja;
+            return COLORES.rojo;
+        }
+
+        function getCategoryLabel(valor) {
+            const v = parseFloat(valor) || 0;
+            if (v === 0) return "0 capturas";
+            if (v <= 1) return "~1 captura";
+            if (v <= 2) return "~2 capturas";
+            return ">2 capturas";
+        }
+
+        // ============================================================
+        // COLORES POR MÓDULO
+        // ============================================================
+        const COLORES_MOD = [
+            "#1565C0", // MOD 1 - azul
+            "#6A1B9A", // MOD 2 - morado
+            "#E65100", // MOD 3 - naranja
+            "#B71C1C", // MOD 4 - rojo
+            "#1B5E20", // MOD 5 - verde oscuro
+            "#00838F", // MOD 6 - cyan
+            "#F9A825", // MOD 7 - amarillo oscuro
+            "#37474F", // MOD 8 - gris
+        ];
+
+        function getColorMod(mod_n) {
+            if (!mod_n) return "#555555";
+            const idx = (parseInt(mod_n) - 1) % COLORES_MOD.length;
+            return COLORES_MOD[idx];
+        }
+
+        // ============================================================
+        // FUNCIONES DE NORMALIZACIÓN
+        // ============================================================
+        function _norm_mod(val) {
+            if (!val) return null;
+            const s = String(val).toUpperCase().trim();
+            const match = s.match(/(\d+)/);
+            return match ? parseInt(match[1]) : null;
+        }
+
+        function _norm_tur(val) {
+            if (!val) return null;
+            const s = String(val).toUpperCase().trim();
+            let match = s.match(/T[\s\-]?(\d+)/);
+            if (match) {
+                const n = parseInt(match[1]);
+                return n <= 20 ? n : null;
+            }
+            match = s.match(/^\s*T?(\d+)\s*$/);
+            if (match) {
+                const n = parseInt(match[1]);
+                return n <= 20 ? n : null;
+            }
+            return null;
+        }
+
+        function _norm_lote(val) {
+            if (!val) return null;
+            let s = String(val).trim().toUpperCase();
+            if (!s || s === 'NAN' || s === 'NONE') return null;
+            const match = s.match(/^(\d+)\.0+$/);
+            if (match) return match[1];
+            s = s.replace(/-/g, '');
+            return s;
+        }
+
+        function _fundo_to_aq(fundo) {
+            if (!fundo) return null;
+            const fundoUpper = String(fundo).toUpperCase().trim();
+            const mapping = {
+                'ARENA AZUL': 'AQ1',
+                'QURI ALLPA': 'AQ1',
+                'KAWSAY ALLPA': 'AQ1',
+                'AYLLU ALLPA': 'AQ1',
+                'SANTA TERESA': 'AQ2',
+                'VIVADIS': 'AQ2',
+            };
+            return mapping[fundoUpper] || null;
+        }
+
+        // ============================================================
+        // MOSTRAR/OCULTAR LOADING
+        // ============================================================
+        function showLoading(text = 'Procesando isolíneas y puntos...') {
+            const spinner = document.getElementById('loadingSpinner');
+            if (spinner) {
+                document.getElementById('loadingText').textContent = text;
+                spinner.style.display = 'block';
+            }
+        }
+
+        function hideLoading() {
+            const spinner = document.getElementById('loadingSpinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        }
+
+        // ============================================================
+        // INTERPOLACIÓN IDW
+        // ============================================================
+        function interpolateIDW(x, y, points, values, power = 2) {
+            if (points.length === 0) return 0;
+            if (points.length === 1) return values[0];
+
+            let totalWeight = 0;
+            let totalValue = 0;
+            const distances = [];
+
+            for (let i = 0; i < points.length; i++) {
+                const [py, px] = points[i];
+                const dist = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
+                distances.push(dist);
+                if (dist < 1e-10) return values[i];
+            }
+
+            const minDist = Math.min(...distances);
+            const normalizedMinDist = Math.max(minDist, 0.0001);
+
+            for (let i = 0; i < points.length; i++) {
+                const dist = Math.max(normalizedMinDist / 100, distances[i]);
+                const weight = 1 / (dist ** power);
+                totalWeight += weight;
+                totalValue += values[i] * weight;
+            }
+
+            return totalValue / totalWeight;
+        }
+
+        // ============================================================
+        // CREAR GRILLA INTERPOLADA
+        // ============================================================
+        function createInterpolationGrid(lotes, bounds, gridSize = 50) {
+            const [latMin, lonMin, latMax, lonMax] = bounds;
+            const points = lotes.map(l => [l.lat, l.lon]);
+            const values = lotes.map(l => l.capturas);
+            const grid = [];
+            for (let i = 0; i < gridSize; i++) {
+                grid[i] = [];
+                for (let j = 0; j < gridSize; j++) {
+                    const lat = latMax - (i / gridSize) * (latMax - latMin);
+                    const lon = lonMin + (j / gridSize) * (lonMax - lonMin);
+                    grid[i][j] = interpolateIDW(lon, lat, points, values, 2);
+                }
+            }
+            return grid;
+        }
+
+        // ============================================================
+        // MARCHING SQUARES
+        // ============================================================
+        function extractContoursMarching(grid, bounds, levels) {
+            const [latMin, lonMin, latMax, lonMax] = bounds;
+            const gridSize = grid.length;
+            const contours = [];
+
+            for (const level of levels) {
+                const paths = [];
+                for (let i = 0; i < gridSize - 1; i++) {
+                    for (let j = 0; j < gridSize - 1; j++) {
+                        const v00 = grid[i][j];
+                        const v10 = grid[i + 1][j];
+                        const v01 = grid[i][j + 1];
+                        const v11 = grid[i + 1][j + 1];
+                        const caseIdx =
+                            (v00 > level ? 1 : 0) |
+                            (v10 > level ? 2 : 0) |
+                            (v01 > level ? 4 : 0) |
+                            (v11 > level ? 8 : 0);
+                        if (caseIdx === 0 || caseIdx === 15) continue;
+                        const edges = [];
+                        if ((v00 > level) !== (v10 > level)) {
+                            const t = Math.abs(level - v00) / Math.abs(v10 - v00 || 1);
+                            edges.push([i + Math.max(0, Math.min(1, t)), j]);
+                        }
+                        if ((v00 > level) !== (v01 > level)) {
+                            const t = Math.abs(level - v00) / Math.abs(v01 - v00 || 1);
+                            edges.push([i, j + Math.max(0, Math.min(1, t))]);
+                        }
+                        if ((v10 > level) !== (v11 > level)) {
+                            const t = Math.abs(level - v10) / Math.abs(v11 - v10 || 1);
+                            edges.push([i + Math.max(0, Math.min(1, t)), j + 1]);
+                        }
+                        if ((v01 > level) !== (v11 > level)) {
+                            const t = Math.abs(level - v01) / Math.abs(v11 - v01 || 1);
+                            edges.push([i + 1, j + Math.max(0, Math.min(1, t))]);
+                        }
+                        if (edges.length >= 2) {
+                            const path = edges.map(([pi, pj]) => [
+                                latMax - (pi / gridSize) * (latMax - latMin),
+                                lonMin + (pj / gridSize) * (lonMax - lonMin)
+                            ]);
+                            paths.push(path);
+                        }
+                    }
+                }
+                if (paths.length > 0) contours.push({ level, paths });
+            }
+            return contours;
+        }
+
+        // ============================================================
+        // DOUGLAS-PEUCKER
+        // ============================================================
+        function douglasPeucker(points, epsilon) {
+            if (points.length < 3) return points;
+            let maxDist = 0;
+            let maxIdx = 0;
+            const start = points[0];
+            const end = points[points.length - 1];
+            for (let i = 1; i < points.length - 1; i++) {
+                const dist = perpendicularDistance(points[i], start, end);
+                if (dist > maxDist) { maxDist = dist; maxIdx = i; }
+            }
+            if (maxDist > epsilon) {
+                const left = douglasPeucker(points.slice(0, maxIdx + 1), epsilon);
+                const right = douglasPeucker(points.slice(maxIdx), epsilon);
+                return [...left.slice(0, -1), ...right];
+            } else {
+                return [start, end];
+            }
+        }
+
+        function perpendicularDistance(point, lineStart, lineEnd) {
+            const [px, py] = point;
+            const [x1, y1] = lineStart;
+            const [x2, y2] = lineEnd;
+            const numerator = Math.abs((y2 - y1) * px - (x2 - x1) * py + x2 * y1 - y2 * x1);
+            const denominator = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
+            return denominator === 0 ? 0 : numerator / denominator;
+        }
+
+        // ============================================================
+        // RENDERIZAR CONTORNOS GAUSSIANOS
+        // ============================================================
+        function renderContornosGauss() {
+            const contornos = streamlitData.contornos || { fills: [], lines: [], opacidad: 0.65 };
+            const opacidad = contornos.opacidad ?? 0.65;
+
+            if (isolineLayer) { map.removeLayer(isolineLayer); isolineLayer = null; }
+
+            const fillLayer = L.featureGroup();
+            const lineLayer = L.featureGroup();
+
+            contornos.fills.forEach(f => {
+                if (!f.coords || f.coords.length < 3) return;
+                L.polygon(f.coords, {
+                    color:       f.color,
+                    fillColor:   f.color,
+                    fillOpacity: opacidad,
+                    weight:      1.5,       // ← subir de 0.8 a 1.5
+                    opacity:     1,
+                    interactive: false,
+                }).addTo(fillLayer);
+            });
+
+            contornos.lines.forEach(l => {
+                if (!l.coords || l.coords.length < 2) return;
+                L.polyline(l.coords, {
+                    color: "black",
+                    weight: l.grosor ?? 2,
+                    opacity: 1,
+                    lineCap: "round",
+                    lineJoin: "round",
+                }).bindPopup(`<b>Nivel: ${l.level.toFixed(1)} capturas</b>`)
+                    .addTo(lineLayer);
+            });
+
+            isolineLayer = L.featureGroup([fillLayer, lineLayer]);
+            isolineLayer.addTo(map);
+
+            if (markerLayer) markerLayer.bringToFront();
+
+            console.log(
+                `✅ Gaussiano: ${contornos.fills.length} rellenos | ` +
+                `${contornos.lines.length} líneas | opacidad: ${opacidad}`
+            );
+        }
+
+        // ============================================================
+        // RENDERIZAR PUNTOS (badges por turno + círculos por lote)
+        // ============================================================
+function renderPuntos() {
+    const lotes    = streamlitData.lotes || [];
+    const lotesRaw = streamlitData.data  || [];
+
+    if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+
+    // ── Capa 1: badges por turno (zoom lejano) ──
+    const badgeLayer = L.featureGroup();
+
+    lotes.forEach(d => {
+        const color   = getColorByCapturas(d.capturas);
+        const esRojo  = d.capturas > 2;
+
+        const turnoLabel = d.turno
+            ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
+            : "";
+        const modLabel = d.modulo
+            ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
+            : "";
+
+        const lotesStr = Array.isArray(d.lotes) && d.lotes.length > 0
+            ? d.lotes.join(", ")
+            : (d.lote || "—");
+
+        const popup = `
+            <div style="font-family:Arial,sans-serif;font-size:12px;
+                        line-height:1.6;min-width:160px;">
+                <b>Fundo:</b> ${d.fundo}<br>
+                <b>Módulo:</b> ${d.modulo}<br>
+                <b>Turno:</b> ${d.turno}<br>
+                <b>Lotes:</b> ${lotesStr}<br>
+                <b>N° lotes:</b> ${d.n_lotes || 1}<br>
+                <hr style="margin:4px 0;">
+                <b style="color:#d9534f;">${d.capturas} capturas totales</b>
+            </div>
+        `;
+
+        if (esRojo) {
+            const moscaIcon = L.divIcon({
+                className: "",
+                html: `
+                    <div style="display:flex;flex-direction:column;
+                                align-items:center;gap:0px;">
+                        <div style="font-size:${modoSoloAlertas ? '7px' : '18px'};
+                            animation:flotar 1.2s ease-in-out infinite;
+                            filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
+                        <div style="
+                            background:${modoSoloAlertas ? 'transparent' : '#FF0000'};
+                            color:${modoSoloAlertas ? '#CC0000' : '#fff'};
+                            padding:${modoSoloAlertas ? '0' : '3px 10px'};
+                            border-radius:${modoSoloAlertas ? '0' : '14px'};
+                            font-size:${modoSoloAlertas ? '7px' : '11px'};
+                            font-weight:900;
+                            border:${modoSoloAlertas ? 'none' : '2px solid rgba(255,255,255,0.85)'};
+                            box-shadow:${modoSoloAlertas ? 'none' : '0 2px 8px rgba(0,0,0,0.5)'};
+                            text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
+                            white-space:nowrap;text-align:center;line-height:1.4;
+                        ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
+                    </div>
+                `,
+                iconSize:    modoSoloAlertas ? [45, 22] : [80, 46],
+                iconAnchor:  modoSoloAlertas ? [22, 22] : [40, 46],
+                popupAnchor: [0, modoSoloAlertas ? -24 : -48],
+            });
+            L.marker([d.lat, d.lon], { icon: moscaIcon })
+                .bindPopup(popup)
+                .addTo(badgeLayer);
+
+        } else {
+            if (window._etiquetasVisible === false) return;
+
+            const badgeIcon = L.divIcon({
+                className: "turno-label",
+                html: `
+                    <div style="
+                        background:${modoSoloAlertas ? 'transparent' : color};
+                        color:${modoSoloAlertas ? '#000' : '#fff'};
+                        padding:${modoSoloAlertas ? '0' : '3px 10px'};
+                        border-radius:${modoSoloAlertas ? '0' : '14px'};
+                        font-size:${modoSoloAlertas ? '7px' : '11px'};
+                        font-weight:${modoSoloAlertas ? '900' : '800'};
+                        border:${modoSoloAlertas ? 'none' : '2px solid rgba(255,255,255,0.85)'};
+                        box-shadow:${modoSoloAlertas ? 'none' : '0 2px 6px rgba(0,0,0,0.45)'};
+                        text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
+                        white-space:nowrap;text-align:center;
+                        line-height:1.4;cursor:pointer;
+                    ">${modLabel}-${turnoLabel}</div>
+                `,
+                iconSize:    modoSoloAlertas ? [45, 18] : [80, 24],
+                iconAnchor:  modoSoloAlertas ? [22, 9]  : [40, 12],
+                popupAnchor: [0, modoSoloAlertas ? -10 : -16],
+            });
+            L.marker([d.lat, d.lon], { icon: badgeIcon })
+                .bindPopup(popup)
+                .addTo(badgeLayer);
+        }
+    });
+
+    // ── Capa 2: círculos individuales por lote (zoom cercano) ──
+    const circleLayer = L.featureGroup();
+
+    lotesRaw.forEach(d => {
+        const color  = getColorByCapturas(d.capturas);
+        if (!d.lat || !d.lon || d.lat === -9999 || d.lon === -9999) return;
+
+        const turnoLabel = d.turno
+            ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
+            : "";
+        const modLabel = d.modulo
+            ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
+            : "";
+        const esRojo = d.capturas > 2;
+
+        const popup = `
+            <div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.6;">
+                <b>Fundo:</b> ${d.fundo}<br>
+                <b>Módulo:</b> ${d.modulo}<br>
+                <b>Turno:</b> ${d.turno}<br>
+                <b>Lote:</b> ${d.lote}<br>
+                <hr style="margin:4px 0;">
+                <b style="color:#d9534f;">${d.capturas} capturas</b>
+            </div>
+        `;
+
+        if (esRojo) {
+            const moscaIconZoom = L.divIcon({
+                className: "",
+                html: `
+                    <div style="display:flex;flex-direction:column;
+                                align-items:center;gap:0px;">
+                        <div style="font-size:${modoSoloAlertas ? '7px' : '16px'};
+                            animation:flotar 1.2s ease-in-out infinite;
+                            filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
+                        <div style="
+                            background:${modoSoloAlertas ? 'transparent' : '#FF0000'};
+                            color:${modoSoloAlertas ? '#CC0000' : '#fff'};
+                            padding:${modoSoloAlertas ? '0' : '2px 7px'};
+                            border-radius:${modoSoloAlertas ? '0' : '10px'};
+                            font-size:${modoSoloAlertas ? '7px' : '10px'};
+                            font-weight:900;
+                            border:${modoSoloAlertas ? 'none' : '1.5px solid rgba(255,255,255,0.85)'};
+                            box-shadow:${modoSoloAlertas ? 'none' : '0 1px 4px rgba(0,0,0,0.4)'};
+                            text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
+                            white-space:nowrap;text-align:center;line-height:1.4;
+                        ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
+                    </div>
+                `,
+                iconSize:    modoSoloAlertas ? [42, 20] : [100, 40],
+                iconAnchor:  modoSoloAlertas ? [21, 20] : [50,  40],
+                popupAnchor: [0, modoSoloAlertas ? -22 : -42],
+            });
+            L.marker([d.lat, d.lon], { icon: moscaIconZoom })
+                .bindPopup(popup)
+                .addTo(circleLayer);
+
+        } else {
+            if (window._etiquetasVisible === false) return;
+
+            const labelIcon = L.divIcon({
+                className: "turno-label",
+                html: `
+                    <div style="
+                        background:${modoSoloAlertas ? 'transparent' : color};
+                        color:${modoSoloAlertas ? '#000' : '#fff'};                        
+                        padding:${modoSoloAlertas ? '0' : '2px 7px'};
+                        border-radius:${modoSoloAlertas ? '0' : '10px'};
+                        font-size:${modoSoloAlertas ? '7px' : '10px'};
+                        font-weight:${modoSoloAlertas ? '900' : '800'};
+                        border:${modoSoloAlertas ? 'none' : '1.5px solid rgba(255,255,255,0.85)'};
+                        box-shadow:${modoSoloAlertas ? 'none' : '0 1px 4px rgba(0,0,0,0.4)'};
+                        text-shadow:${modoSoloAlertas ? '0 0 3px #fff, 0 0 3px #fff' : 'none'};
+                        white-space:nowrap;text-align:center;
+                        line-height:1.4;cursor:pointer;
+                    ">${modLabel}-${turnoLabel}</div>
+                `,
+                iconSize:    modoSoloAlertas ? [42, 16] : [80, 20],
+                iconAnchor:  modoSoloAlertas ? [21, 8]  : [40, 28],
+                popupAnchor: [0, modoSoloAlertas ? -10 : -30],
+            });
+
+            if (!modoSoloAlertas) {
+                L.circleMarker([d.lat, d.lon], {
+                    radius:      6,
+                    fillColor:   color,
+                    color:       '#000',
+                    weight:      1,
+                    opacity:     1,
+                    fillOpacity: 0.9
+                }).bindPopup(popup).addTo(circleLayer);
+            }
+
+            L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
+                .bindPopup(popup)
+                .addTo(circleLayer);
+        }
+    });
+
+    // ── Guardar capas globalmente ──
+    window._badgeLayer  = badgeLayer;
+    window._circleLayer = circleLayer;
+
+    _actualizarCapasPorZoom();
+
+    console.log(`✅ Badges: ${lotes.length} turnos | Círculos: ${lotesRaw.length} lotes`);
+}
+const ZOOM_CIRCULOS = 16;
+
+        function _actualizarCapasPorZoom() {
+            if (!window._badgeLayer || !window._circleLayer) return;
+            // Respetar checkbox de trampas
+            const trampasVisible = window._trampasVisible !== false;
+            if (!trampasVisible) return;
+
+            const z = map.getZoom();
+            if (z >= ZOOM_CIRCULOS) {
+                if (map.hasLayer(window._badgeLayer)) map.removeLayer(window._badgeLayer);
+                if (!map.hasLayer(window._circleLayer)) window._circleLayer.addTo(map);
+            } else {
+                if (map.hasLayer(window._circleLayer)) map.removeLayer(window._circleLayer);
+                if (!map.hasLayer(window._badgeLayer)) window._badgeLayer.addTo(map);
+            }
+        }
+        // ============================================================
+        // PANEL DE ALERTAS (capturas > 2, agrupado por fundo)
+        // ============================================================
+        function renderAlertPanel() {
+            const lotes = streamlitData.lotes || [];
+            const panel = document.getElementById('alertPanel');
+            if (!panel) return;
+
+            // ── Filtrar solo los que superan umbral ──
+            const alertas = lotes.filter(d => d.capturas > 2);
+
+            if (alertas.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            // ── Agrupar por fundo ──
+            const porFundo = {};
+            alertas.forEach(d => {
+                const fundo = d.fundo || "—";
+                if (!porFundo[fundo]) porFundo[fundo] = [];
+                porFundo[fundo].push(d);
+            });
+
+            // ── Ordenar cada fundo por capturas desc ──
+            Object.keys(porFundo).forEach(f => {
+                porFundo[f].sort((a, b) => b.capturas - a.capturas);
+            });
+
+            // ── Ordenar fundos por total de capturas desc ──
+            const fundosOrdenados = Object.keys(porFundo).sort((a, b) => {
+                const totalA = porFundo[a].reduce((s, d) => s + d.capturas, 0);
+                const totalB = porFundo[b].reduce((s, d) => s + d.capturas, 0);
+                return totalB - totalA;
+            });
+
+            const maxCap = Math.max(...alertas.map(d => d.capturas));
+
+            let html = `
+        <div class="alert-panel-title">🔴 Alertas Fundo / Turno</div>
+        <div class="alert-panel-sub">Capturas > 2 · Fundo → Turno (mayor a menor)</div>
+    `;
+
+            fundosOrdenados.forEach(fundo => {
+                const items = porFundo[fundo];
+                const total = items.reduce((s, d) => s + d.capturas, 0);
+
+                html += `
+            <div class="alert-fundo">
+                <span>📍 ${fundo}</span>
+                <span class="alert-fundo-total">${total} 🪰</span>
+            </div>
+        `;
+
+                items.forEach(d => {
+                    const modLabel = d.modulo ? d.modulo.replace(/.*?(\d+).*/i, 'M$1') : "";
+                    const turnoLabel = d.turno ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1') : "";
+                    const pct = Math.round((d.capturas / maxCap) * 100);
+
+                    html += `
+                <div class="alert-row">
+                    <span class="alert-turno">${modLabel}-${turnoLabel}</span>
+                    <span class="alert-cap">${d.capturas} 🪰</span>
+                </div>
+                <div class="alert-bar" style="width:${pct}%;"></div>
+            `;
+                });
+            });
+
+            panel.innerHTML = html;
+            panel.style.display = 'block';
+        }
+        // ============================================================
+        // RENDERIZAR MODO ESPECTRAL
+        // ============================================================
+        function renderEspectral() {
+            const contornos = streamlitData.contornos || { fills: [], lines: [], opacidad: 0.75 };
+
+            if (isolineLayer) { map.removeLayer(isolineLayer); isolineLayer = null; }
+            isolineLayer = L.featureGroup();
+
+            if (contornos.fills.length === 0) {
+                console.warn("⚠️ Sin fills para Espectral — contornos vacíos");
+                return;
+            }
+
+            contornos.fills.forEach(f => {
+                if (!f.coords || f.coords.length < 3) return;
+                L.polygon(f.coords, {
+                    color:       f.color,
+                    fillColor:   f.color,
+                    fillOpacity: 0.75,
+                    weight:      1.5,       // ← subir de 0.8 a 1.5
+                    opacity:     1,
+                    interactive: false,
+                }).addTo(isolineLayer);
+            });
+
+            isolineLayer.addTo(map);
+            console.log(`✅ Espectral: ${contornos.fills.length} rellenos`);
+        }
+
+        // VECTORES DE PROPAGACIÓN — usa lotes con centroide KMZ
+        // ============================================================
+        function renderVectores() {
+            const cfg = streamlitData.config || {};
+            const rawData = streamlitData.data || [];
+
+            // ── Solo lotes con centroide KMZ confirmado ──
+            const lotes = rawData.filter(d =>
+                d.con_kmz === true &&
+                isFinite(d.lat) && isFinite(d.lon) &&
+                d.lat !== -9999 && d.lon !== -9999
+            );
+
+            if (!cfg.mostrar_vectores || lotes.length < 3) return;
+
+            const nArrows = cfg.n_arrows || 15;
+            const escala = (cfg.escala_flecha || 6) * 1e-4;
+            const hsDeg = (cfg.head_size || 6) * 1e-5;
+            const minMag = cfg.min_mag || 0.05;
+            const colorFlecha = cfg.color_flechas || "#1a1aff";
+
+            if (!window._vectorLayer) {
+                window._vectorLayer = L.featureGroup();
+            } else {
+                window._vectorLayer.clearLayers();
+            }
+
+            // ── 1. BBOX de los puntos ──
+            const lats = lotes.map(d => d.lat);
+            const lons = lotes.map(d => d.lon);
+            const latMin = Math.min(...lats), latMax = Math.max(...lats);
+            const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
+
+            if (latMax - latMin < 1e-8 || lonMax - lonMin < 1e-8) return;
+
+            // ── 2. GRILLA 60×60 con IDW ──
+            const GRID = 60;
+            const gridZ = [];
+            const gridLat = [];
+            const gridLon = [];
+
+            for (let i = 0; i < GRID; i++) {
+                gridZ[i] = [];
+                gridLat[i] = [];
+                gridLon[i] = [];
+                for (let j = 0; j < GRID; j++) {
+                    const lat = latMin + (i / (GRID - 1)) * (latMax - latMin);
+                    const lon = lonMin + (j / (GRID - 1)) * (lonMax - lonMin);
+                    gridLat[i][j] = lat;
+                    gridLon[i][j] = lon;
+                    gridZ[i][j] = idwInterp(lat, lon, lotes, 2);
+                }
+            }
+
+            // ── 3. GAUSSIAN BLUR 2D (sigma=4 celdas) ──
+            const gridSmooth = gaussianBlur2D(gridZ, GRID, GRID, 4);
+
+            // ── 4. GRADIENTE NUMÉRICO (diferencias centrales) ──
+            const gradY = [], gradX = [];
+            for (let i = 0; i < GRID; i++) {
+                gradY[i] = [];
+                gradX[i] = [];
+                for (let j = 0; j < GRID; j++) {
+                    const i0 = Math.max(0, i - 1), i1 = Math.min(GRID - 1, i + 1);
+                    const j0 = Math.max(0, j - 1), j1 = Math.min(GRID - 1, j + 1);
+                    gradY[i][j] = (gridSmooth[i1][j] - gridSmooth[i0][j]) / (i1 - i0);
+                    gradX[i][j] = (gridSmooth[i][j1] - gridSmooth[i][j0]) / (j1 - j0);
+                }
+            }
+
+            // ── 5. SUBMUESTREAR grilla ──
+            const step = Math.max(1, Math.floor(GRID / nArrows));
+            const vectors = [];
+
+            for (let i = Math.floor(step / 2); i < GRID; i += step) {
+                for (let j = Math.floor(step / 2); j < GRID; j += step) {
+                    const val = gridSmooth[i][j];
+                    const gy = gradY[i][j];
+                    const gx = gradX[i][j];
+                    if (!isFinite(val) || !isFinite(gy) || !isFinite(gx)) continue;
+                    const mag = Math.sqrt(gy * gy + gx * gx);
+                    if (mag < minMag || !isFinite(mag) || mag === 0) continue;
+                    vectors.push({
+                        lat: gridLat[i][j],
+                        lon: gridLon[i][j],
+                        dlat: gy / mag,
+                        dlon: gx / mag,
+                        magnitude: mag,
+                        density: val,
+                    });
+                }
+            }
+
+            if (vectors.length === 0) {
+                console.warn("⚠️ Vectores: ninguno pasó el filtro de magnitud mínima");
+                return;
+            }
+
+            // ── 6. DIBUJAR saetas ──
+            const mags = vectors.map(v => v.magnitude).filter(isFinite);
+            const magMax = Math.max(...mags) || 1;
+
+            vectors.forEach(v => {
+                const magNorm = Math.min(1, Math.max(0, v.magnitude / magMax));
+                const arrowLen = escala * (0.3 + 0.7 * magNorm);
+                const opacity = 0.45 + 0.55 * magNorm;
+                const weight = 1 + Math.round(magNorm * 3);
+
+                const lat0 = v.lat, lon0 = v.lon;
+                const lat1 = lat0 + v.dlat * arrowLen;
+                const lon1 = lon0 + v.dlon * arrowLen;
+
+                // Cuerpo de la flecha
+                L.polyline([[lat0, lon0], [lat1, lon1]], {
+                    color: colorFlecha,
+                    weight: weight,
+                    opacity: opacity,
+                    tooltip: `Densidad: ${v.density.toFixed(2)} | Gradiente: ${v.magnitude.toFixed(3)}`,
+                }).addTo(window._vectorLayer);
+
+                // Punta triangular
+                const hs = hsDeg * 10 * (0.6 + 0.4 * magNorm);
+                const angle = Math.atan2(v.dlat, v.dlon);
+                const leftA = angle + (155 * Math.PI / 180);
+                const rightA = angle - (155 * Math.PI / 180);
+
+                L.polygon([
+                    [lat1, lon1],
+                    [lat1 + hs * Math.sin(leftA), lon1 + hs * Math.cos(leftA)],
+                    [lat1 + hs * Math.sin(rightA), lon1 + hs * Math.cos(rightA)],
+                ], {
+                    color: colorFlecha,
+                    fillColor: colorFlecha,
+                    fillOpacity: opacity,
+                    weight: 0,
+                }).addTo(window._vectorLayer);
+            });
+
+            window._vectorLayer.addTo(map);
+            console.log(`✅ Vectores: ${vectors.length} saetas desde ${lotes.length} lotes KMZ`);
+        }
+
+        // ── IDW interpolation ──
+        function idwInterp(lat, lon, points, power) {
+            let num = 0, den = 0;
+            for (const p of points) {
+                const d2 = (lat - p.lat) ** 2 + (lon - p.lon) ** 2;
+                if (d2 < 1e-12) return p.capturas;
+                const w = 1 / Math.pow(d2, power / 2);
+                num += w * p.capturas;
+                den += w;
+            }
+            return den > 0 ? num / den : 0;
+        }
+
+        // ── Gaussian blur 2D separable ──
+        function gaussianBlur2D(grid, rows, cols, sigma) {
+            const radius = Math.ceil(sigma * 3);
+            const kernel = [];
+            let ksum = 0;
+            for (let k = -radius; k <= radius; k++) {
+                const v = Math.exp(-(k * k) / (2 * sigma * sigma));
+                kernel.push(v);
+                ksum += v;
+            }
+            for (let k = 0; k < kernel.length; k++) kernel[k] /= ksum;
+
+            // Pasada horizontal
+            const tmp = Array.from({ length: rows }, () => new Array(cols).fill(0));
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    let acc = 0;
+                    for (let k = 0; k < kernel.length; k++) {
+                        const jj = Math.min(cols - 1, Math.max(0, j + k - radius));
+                        acc += kernel[k] * grid[i][jj];
+                    }
+                    tmp[i][j] = acc;
+                }
+            }
+
+            // Pasada vertical
+            const out = Array.from({ length: rows }, () => new Array(cols).fill(0));
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    let acc = 0;
+                    for (let k = 0; k < kernel.length; k++) {
+                        const ii = Math.min(rows - 1, Math.max(0, i + k - radius));
+                        acc += kernel[k] * tmp[ii][j];
+                    }
+                    out[i][j] = acc;
+                }
+            }
+            return out;
+        }
+        // ============================================================
+        // ACTUALIZAR LEYENDA
+        // ============================================================
+        function updateLegend() {
+            const modo = streamlitData.config?.modo_color || "Normal";
+
+            let legendHTML = `<div class="legend-title">📊 Capturas de Mosca</div>`;
+
+            if (modo === "Normal") {
+                legendHTML += `
+            <div class="legend-section">
+                <div class="legend-section-title">Semáforo por capturas:</div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#00FF00;"></div>
+                    <div class="legend-label">0 capturas</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#FFFF00;"></div>
+                    <div class="legend-label">1 captura</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#FFA500;"></div>
+                    <div class="legend-label">2 capturas</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background:#FF0000;"></div>
+                    <div class="legend-label">> 2 capturas 🪰</div>
+                </div>
+            </div>
+        `;
+            } else if (modo === "Espectral") {
+                legendHTML += `
+            <div class="legend-section">
+                <div class="legend-section-title">Intensidad heatmap:</div>
+                <div style="
+                    width: 100%;
+                    height: 16px;
+                    border-radius: 4px;
+                    background: linear-gradient(to right, #00FF00, #FFFF00, #FFA500, #FF0000);
+                    margin: 6px 0;
+                    border: 1px solid #ccc;
+                "></div>
+                <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;">
+                    <span>0</span><span>1</span><span>2</span><span>>2 🪰</span>
+                </div>
+            </div>
+            <div class="legend-section">
+                <div style="font-size:9px;color:#333;line-height:1.8;">
+                    ⚫ Puntos: datos reales por lote
+                </div>
+            </div>
+        `;
+            } else if (modo === "Curvas de Nivel") {
+                legendHTML += `
+            <div class="legend-section">
+                <div class="legend-section-title">Relleno gaussiano:</div>
+                <div style="
+                    width: 100%;
+                    height: 16px;
+                    border-radius: 4px;
+                    background: linear-gradient(to right, #00FF00, #FFFF00, #FFA500, #FF0000);
+                    margin: 6px 0;
+                    border: 1px solid #ccc;
+                "></div>
+                <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;">
+                    <span>0</span><span>1</span><span>2</span><span>>2 🪰</span>
+                </div>
+            </div>
+            <div class="legend-section">
+                <div style="font-size:9px;color:#333;line-height:1.8;">
+                    ─── <b>Negro:</b> Curvas de nivel<br>
+                    ⚫ Puntos: datos reales por lote
+                </div>
+            </div>
+        `;
+            }
+
+            // ── Leyenda de módulos ──
+            const modNums = [...new Set(
+                (streamlitData.polygons || []).map(p => p.mod_n).filter(Boolean)
+            )].sort((a, b) => a - b);
+
+            document.getElementById("legendContainer").innerHTML = legendHTML;
+        }
+
+        // ============================================================
+        // RENDERIZAR POLÍGONOS KMZ (solo borde por módulo, sin popup)
+        // ============================================================
+        function renderPolygons(polygons) {
+            const polygsNormalized = polygons.map(poly => ({
+                ...poly,
+                mod_n: poly.mod_n !== undefined ? poly.mod_n : null,
+                tur_n: poly.tur_n !== undefined ? poly.tur_n : null,
+                fundo_aq: poly.fundo_aq !== undefined ? poly.fundo_aq : null,
+                lote_name: poly.lote || poly.lote_name || null
+            }));
+
+            allPolygons = polygsNormalized;
+            let bounds = L.latLngBounds();
+            polygonLayer = L.featureGroup();
+
+            polygsNormalized.forEach((poly) => {
+                try {
+                    if (!poly.coords || poly.coords.length < 3) return;
+
+                    poly.coords.forEach(c => bounds.extend(c));
+
+                    const color = getColorMod(poly.mod_n);
+
+                    L.polygon(poly.coords, {
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0,       // sin relleno
+                        weight: 2.5,
+                        opacity: 0.85,
+                        interactive: false,   // sin popup ni click
+                    }).addTo(polygonLayer);
+
+                } catch (e) {
+                    console.error('Error en polígono:', e);
+                }
+            });
+
+            polygonLayer.addTo(map);
+            return bounds;
+        }
+        // ============================================================
+        // CONTROL DE CAPAS — respeta configuración Python
+        // ============================================================
+function initLayerControls() {
+    const cfg  = streamlitData.config || {};
+    const modo = cfg.modo_color || "Normal";
+
+    // ── Curvas de Nivel ──
+    const itemCurvas = document.getElementById('item_curvas');
+    if (modo === "Curvas de Nivel") {
+        itemCurvas.style.display = 'flex';
+    } else {
+        itemCurvas.style.display = 'none';
+    }
+
+    // ── Vectores ──
+    const itemVectores = document.getElementById('item_vectores');
+    if (cfg.mostrar_vectores) {
+        itemVectores.style.display = 'flex';
+    } else {
+        itemVectores.style.display = 'none';
+    }
+
+    // ── TRAMPAS ──
+    document.getElementById('chk_trampas').addEventListener('change', function () {
+        window._trampasVisible = this.checked;
+        if (this.checked) {
+            _actualizarCapasPorZoom();
+        } else {
+            if (window._badgeLayer  && map.hasLayer(window._badgeLayer))
+                map.removeLayer(window._badgeLayer);
+            if (window._circleLayer && map.hasLayer(window._circleLayer))
+                map.removeLayer(window._circleLayer);
+        }
+    });
+
+    // ── ETIQUETAS NO ROJAS ──
+    document.getElementById('chk_etiquetas').addEventListener('change', function () {
+        window._etiquetasVisible = this.checked;
+        // Reconstruir markers respetando el nuevo estado
+        if (window._badgeLayer) {
+            map.removeLayer(window._badgeLayer);
+            window._badgeLayer = null;
+        }
+        if (window._circleLayer) {
+            map.removeLayer(window._circleLayer);
+            window._circleLayer = null;
+        }
+        renderPuntos();
+    });
+
+    // ── PANEL ALERTAS ──
+    document.getElementById('chk_alertas').addEventListener('change', function () {
+        const alertPanel = document.getElementById('alertPanel');
+        if (!alertPanel) return;
+        alertPanel.style.display = this.checked ? 'block' : 'none';
+    });
+
+    // ── VECTORES ──
+    document.getElementById('chk_vectores').addEventListener('change', function () {
+        if (!window._vectorLayer) return;
+        if (this.checked) {
+            window._vectorLayer.addTo(map);
+        } else {
+            map.removeLayer(window._vectorLayer);
+        }
+    });
+
+    // ── CURVAS DE NIVEL ──
+    document.getElementById('chk_curvas').addEventListener('change', function () {
+        if (!isolineLayer) return;
+        isolineLayer.eachLayer(function (layer) {
+            if (layer instanceof L.FeatureGroup) {
+                layer.eachLayer(function (sublayer) {
+                    if (sublayer instanceof L.Polyline && !(sublayer instanceof L.Polygon)) {
+                        sublayer.setStyle({ opacity: document.getElementById('chk_curvas').checked ? 1 : 0 });
+                    }
+                });
+            }
+        });
+    });
+}
+        // ============================================================
+        // MODO PNG — oculta etiquetas no rojas, reconstruye capas
+        // ============================================================
+function _prepararModoPNG() {
+    modoSoloAlertas = true;
+
+    if (window._badgeLayer) {
+        map.removeLayer(window._badgeLayer);
+        window._badgeLayer = null;
+    }
+    if (window._circleLayer) {
+        map.removeLayer(window._circleLayer);
+        window._circleLayer = null;
+    }
+
+    renderPuntos();
+
+    // ── Ocultar solo el panel de capas y el info ──
+    const panel = document.getElementById('layerControlPanel');
+    const info  = document.querySelector('.map-info');
+    if (panel) panel.style.display = 'none';
+    if (info)  info.style.display  = 'none';
+
+    // ── Alertas y leyenda SE MANTIENEN visibles en PNG ──
+    const alert  = document.getElementById('alertPanel');
+    const legend = document.getElementById('legendContainer');
+    if (alert)  alert.style.display  = 'block';
+    if (legend) legend.style.display = 'block';
+}
+function activarModoPNGGeneral() {
+    _prepararModoPNG();
+
+    const bounds = L.latLngBounds();
+
+    // ── Usar directamente los lotes con data (ya tienen lat/lon reales) ──
+    (streamlitData.lotes || []).forEach(d => {
+        if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
+            bounds.extend([d.lat, d.lon]);
+        }
+    });
+
+    // Fallback con data raw
+    if (!bounds.isValid()) {
+        (streamlitData.data || []).forEach(d => {
+            if (d.lat && d.lon && d.lat !== -9999 && d.lon !== -9999) {
+                bounds.extend([d.lat, d.lon]);
+            }
+        });
+    }
+
+    // Fallback total: todos los polígonos
+    if (!bounds.isValid() && polygonLayer) {
+        const allBounds = polygonLayer.getBounds();
+        if (allBounds.isValid()) bounds.extend(allBounds);
+    }
+
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [80, 80], animate: false });
+    }
+
+    return true;
+}
+function desactivarModoPNG() {
+    modoSoloAlertas = false;
+
+    if (window._badgeLayer) {
+        map.removeLayer(window._badgeLayer);
+        window._badgeLayer = null;
+    }
+    if (window._circleLayer) {
+        map.removeLayer(window._circleLayer);
+        window._circleLayer = null;
+    }
+
+    renderPuntos();
+
+    const panel  = document.getElementById('layerControlPanel');
+    const alert  = document.getElementById('alertPanel');
+    const info   = document.querySelector('.map-info');
+    const legend = document.getElementById('legendContainer');
+    if (panel)  panel.style.display  = 'block';
+    if (alert)  alert.style.display  = 'block';
+    if (info)   info.style.display   = 'block';
+    if (legend) legend.style.display = 'block';
+}
+// ============================================================
+        // INICIALIZAR MAPA
+        // ============================================================
+        async function initMap() {
+
+            if (polygonLayer) { polygonLayer.clearLayers(); polygonLayer = null; }
+            if (markerLayer) { markerLayer.clearLayers(); markerLayer = null; }
+            if (isolineLayer) { map && map.removeLayer(isolineLayer); isolineLayer = null; }
+            if (map) { map.off(); map.remove(); map = null; }
+
+            const container = document.getElementById('mapContainer');
+            if (!container) {
+                console.error('❌ mapContainer no encontrado');
+                return;
+            }
+
+            map = L.map('mapContainer', {
+                attributionControl: true,
+                zoomControl: true,
+                zoomAnimation: false,
+                fadeAnimation: false,
+                markerZoomAnimation: false
+            }).setView([-8.345, -79.160], 13);
+
+            L.tileLayer(
+                'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    maxZoom: 19,
+                    minZoom: 10,
+                    crossOrigin: true
+                }
+            ).addTo(map);
+
+            map.whenReady(() => {
+                setTimeout(() => map.invalidateSize(true), 500);
+            });
+
+            L.control.scale({ position: 'bottomleft' }).addTo(map);
+
+            try {
+                const polygons = streamlitData.polygons || [];
+                if (polygons.length > 0) {
+                    const bounds = renderPolygons(polygons);
+                    if (bounds && bounds.isValid()) {
+                        setTimeout(() => {
+                            map.fitBounds(bounds, { padding: [40, 40] });
+                        }, 300);
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 10));
+
+                const modo = streamlitData.config?.modo_color || "Normal";
+
+                if (modo === "Normal") {
+                    renderPuntos();
+                    map.on('zoomend', _actualizarCapasPorZoom);
+
+                } else if (modo === "Espectral") {
+                    renderEspectral();
+                    renderPuntos();
+                    map.on('zoomend', _actualizarCapasPorZoom);
+
+                } else if (modo === "Curvas de Nivel") {
+                    renderContornosGauss();
+                    renderPuntos();
+                    map.on('zoomend', _actualizarCapasPorZoom);
+                }
+                renderVectores();   // ← agregar aquí
+
+                if (markerLayer) markerLayer.bringToFront();
+
+                updateLegend();
+
+                document.getElementById('recordCount').textContent = streamlitData.recordCount || 0;
+                document.getElementById('modoInfo').textContent =
+                    modo === "Normal" ? "⚫ Puntos por lote" :
+                        modo === "Espectral" ? "🌈 Espectral + Puntos" :
+                            "➖ Curvas de nivel + Puntos";
+                renderAlertPanel();
+                initLayerControls();  // ← AGREGAR
+
+                hideLoading();
+
+            } catch (error) {
+                console.error('❌ Error en initMap:', error);
+                hideLoading();
+            }
+        }
+
+        // Iniciar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => initMap());
+        } else {
+            initMap();
+        }
+
+    </script>
+
+</body>
+
+</html>
