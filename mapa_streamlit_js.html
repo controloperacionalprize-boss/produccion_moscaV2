@@ -389,6 +389,7 @@
         };
 
         const COLORES = {
+            blanco: "#FFFFFF",
             verde: "#00C800",
             amarillo: "#FFD700",
             naranja: "#FF8C00",
@@ -400,18 +401,20 @@
         // ============================================================
         function getColorByCapturas(valor) {
             const v = parseFloat(valor) || 0;
-            if (v === 0) return COLORES.verde;
-            if (v <= 1) return COLORES.amarillo;
-            if (v <= 2) return COLORES.naranja;
+            if (v === 0) return COLORES.blanco;
+            if (v <= 1) return COLORES.verde;
+            if (v <= 2) return COLORES.amarillo;
+            if (v <= 3) return COLORES.naranja;
             return COLORES.rojo;
         }
 
         function getCategoryLabel(valor) {
             const v = parseFloat(valor) || 0;
             if (v === 0) return "0 capturas";
-            if (v <= 1) return "~1 captura";
-            if (v <= 2) return "~2 capturas";
-            return ">2 capturas";
+            if (v <= 1) return "1 captura";
+            if (v <= 2) return "2 capturas";
+            if (v <= 3) return "3 capturas";
+            return ">3 capturas";
         }
 
         // ============================================================
@@ -686,31 +689,30 @@
         // ============================================================
         // RENDERIZAR PUNTOS (badges por turno + círculos por lote)
         // ============================================================
-function renderPuntos() {
-    const lotes    = streamlitData.lotes || [];
-    const lotesRaw = streamlitData.data  || [];
+        function renderPuntos() {
+            const lotes = streamlitData.lotes || [];
+            const lotesRaw = streamlitData.data || [];
 
-    if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+            if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
 
-    // ── Capa 1: badges por turno (zoom lejano) ──
-    const badgeLayer = L.featureGroup();
+            // ── Capa 1: badges por turno (zoom lejano) ──
+            const badgeLayer = L.featureGroup();
 
-    lotes.forEach(d => {
-        const color  = getColorByCapturas(d.capturas);
-        const esRojo = d.capturas > 2;
+            lotes.forEach(d => {
+                const color = getColorByCapturas(d.capturas);
+                const esRojo = d.capturas > 3;
+                const turnoLabel = d.turno
+                    ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
+                    : "";
+                const modLabel = d.modulo
+                    ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
+                    : "";
 
-        const turnoLabel = d.turno
-            ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
-            : "";
-        const modLabel = d.modulo
-            ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
-            : "";
+                const lotesStr = Array.isArray(d.lotes) && d.lotes.length > 0
+                    ? d.lotes.join(", ")
+                    : (d.lote || "—");
 
-        const lotesStr = Array.isArray(d.lotes) && d.lotes.length > 0
-            ? d.lotes.join(", ")
-            : (d.lote || "—");
-
-        const popup = `
+                const popup = `
             <div style="font-family:Arial,sans-serif;font-size:12px;
                         line-height:1.6;min-width:160px;">
                 <b>Fundo:</b> ${d.fundo}<br>
@@ -723,29 +725,29 @@ function renderPuntos() {
             </div>
         `;
 
-        // ─── MODO PNG: SOLO TEXTO LIMPIO ───
-        if (modoSoloAlertas) {
-            const textColor = esRojo ? "#E63946" : "#000000";
-            const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+                // ─── MODO PNG: SOLO TEXTO LIMPIO ───
+                if (modoSoloAlertas) {
+                    const textColor = esRojo ? "#E63946" : "#000000";
+                    const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
 
-            const cleanIcon = L.divIcon({
-    className: "",
-    html: `<div style="color:${textColor};font-weight:900;font-size:9px;text-shadow:0 1px 3px rgba(255,255,255,0.8);">${textLabel}</div>`,
-    //                                                    ↑ CAMBIAR DE 12px A 9px
-    iconSize:    [80, 20],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
-    iconAnchor:  [40, 10],
-    popupAnchor: [0, -16],
-});
-            L.marker([d.lat, d.lon], { icon: cleanIcon })
-                .bindPopup(popup)
-                .addTo(badgeLayer);
+                    const cleanIcon = L.divIcon({
+                        className: "",
+                        html: `<div style="color:${textColor};font-weight:900;font-size:9px;text-shadow:0 1px 3px rgba(255,255,255,0.8);">${textLabel}</div>`,
+                        //                                                    ↑ CAMBIAR DE 12px A 9px
+                        iconSize: [80, 20],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
+                        iconAnchor: [40, 10],
+                        popupAnchor: [0, -16],
+                    });
+                    L.marker([d.lat, d.lon], { icon: cleanIcon })
+                        .bindPopup(popup)
+                        .addTo(badgeLayer);
 
-        // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
-        } else {
-            if (esRojo) {
-                const moscaIcon = L.divIcon({
-                    className: "",
-                    html: `
+                    // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
+                } else {
+                    if (esRojo) {
+                        const moscaIcon = L.divIcon({
+                            className: "",
+                            html: `
                         <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
                             <div style="font-size:18px;
                                 animation:flotar 1.2s ease-in-out infinite;
@@ -763,58 +765,58 @@ function renderPuntos() {
                             ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
                         </div>
                     `,
-                    iconSize:    [80, 46],
-                    iconAnchor:  [40, 46],
-                    popupAnchor: [0, -48],
-                });
-                L.marker([d.lat, d.lon], { icon: moscaIcon })
-                    .bindPopup(popup)
-                    .addTo(badgeLayer);
+                            iconSize: [80, 46],
+                            iconAnchor: [40, 46],
+                            popupAnchor: [0, -48],
+                        });
+                        L.marker([d.lat, d.lon], { icon: moscaIcon })
+                            .bindPopup(popup)
+                            .addTo(badgeLayer);
 
-            } else {
-                const badgeIcon = L.divIcon({
-                    className: "turno-label",
-                    html: `
-                        <div style="
-                            background:${color};
-                            color:#fff;
-                            padding:3px 10px;
-                            border-radius:14px;
-                            font-size:11px;
-                            font-weight:800;
-                            border:2px solid rgba(255,255,255,0.85);
-                            box-shadow:0 2px 6px rgba(0,0,0,0.45);
-                            white-space:nowrap;text-align:center;
-                            line-height:1.4;cursor:pointer;
-                        ">${modLabel}-${turnoLabel}</div>
-                    `,
-                    iconSize:    [80, 24],
-                    iconAnchor:  [40, 12],
-                    popupAnchor: [0, -16],
-                });
-                L.marker([d.lat, d.lon], { icon: badgeIcon })
-                    .bindPopup(popup)
-                    .addTo(badgeLayer);
-            }
-        }
-    });
+                    } else {
+                        const badgeIcon = L.divIcon({
+                            className: "turno-label",
+                            html: `
+        <div style="
+            background:${color};
+            color:${d.capturas === 0 ? '#000' : '#fff'};;
+            padding:3px 10px;
+            border-radius:14px;
+            font-size:11px;
+            font-weight:800;
+            border:2px solid rgba(255,255,255,0.85);
+            box-shadow:0 2px 6px rgba(0,0,0,0.45);
+            white-space:nowrap;text-align:center;
+            line-height:1.4;cursor:pointer;
+        ">${modLabel}-${turnoLabel}</div>
+    `,
+                            iconSize: [80, 24],
+                            iconAnchor: [40, 12],
+                            popupAnchor: [0, -16],
+                        });
+                        L.marker([d.lat, d.lon], { icon: badgeIcon })
+                            .bindPopup(popup)
+                            .addTo(badgeLayer);
+                    }
+                }
+            });
 
-    // ── Capa 2: círculos individuales por lote (zoom cercano) ──
-    const circleLayer = L.featureGroup();
+            // ── Capa 2: círculos individuales por lote (zoom cercano) ──
+            const circleLayer = L.featureGroup();
 
-    lotesRaw.forEach(d => {
-        const color  = getColorByCapturas(d.capturas);
-        if (!d.lat || !d.lon || d.lat === -9999 || d.lon === -9999) return;
+            lotesRaw.forEach(d => {
+                const color = getColorByCapturas(d.capturas);
+                if (!d.lat || !d.lon || d.lat === -9999 || d.lon === -9999) return;
 
-        const turnoLabel = d.turno
-            ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
-            : "";
-        const modLabel = d.modulo
-            ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
-            : "";
-        const esRojo = d.capturas > 2;
+                const turnoLabel = d.turno
+                    ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
+                    : "";
+                const modLabel = d.modulo
+                    ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
+                    : "";
+                const esRojo = d.capturas > 3;
 
-        const popup = `
+                const popup = `
             <div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.6;">
                 <b>Fundo:</b> ${d.fundo}<br>
                 <b>Módulo:</b> ${d.modulo}<br>
@@ -825,41 +827,41 @@ function renderPuntos() {
             </div>
         `;
 
-        // ─── MODO PNG: SOLO TEXTO LIMPIO ───
-        if (modoSoloAlertas) {
-            const textColor = esRojo ? "#E63946" : "#000000";
-            const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+                // ─── MODO PNG: SOLO TEXTO LIMPIO ───
+                if (modoSoloAlertas) {
+                    const textColor = esRojo ? "#E63946" : "#000000";
+                    const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
 
-            // Solo círculo si es rojo
-            if (esRojo) {
-                L.circleMarker([d.lat, d.lon], {
-                    radius: 7,
-                    fillColor: "#E63946",
-                    color: '#000',
-                    weight: 1.5,
-                    opacity: 1,
-                    fillOpacity: 0.3
-                }).bindPopup(popup).addTo(circleLayer);
-            }
+                    // Solo círculo si es rojo
+                    if (esRojo) {
+                        L.circleMarker([d.lat, d.lon], {
+                            radius: 7,
+                            fillColor: "#E63946",
+                            color: '#000',
+                            weight: 1.5,
+                            opacity: 1,
+                            fillOpacity: 0.3
+                        }).bindPopup(popup).addTo(circleLayer);
+                    }
 
-            const cleanLabel = L.divIcon({
-    className: "",
-    html: `<div style="color:${textColor};font-weight:900;font-size:8px;text-shadow:0 1px 2px rgba(255,255,255,0.8);">${textLabel}</div>`,
-    //                                                    ↑ CAMBIAR DE 11px A 8px
-    iconSize:    [75, 16],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
-    iconAnchor:  [37, 8],
-    popupAnchor: [0, -12],
-});
-            L.marker([d.lat, d.lon], { icon: cleanLabel, interactive: true })
-                .bindPopup(popup)
-                .addTo(circleLayer);
+                    const cleanLabel = L.divIcon({
+                        className: "",
+                        html: `<div style="color:${textColor};font-weight:900;font-size:8px;text-shadow:0 1px 2px rgba(255,255,255,0.8);">${textLabel}</div>`,
+                        //                                                    ↑ CAMBIAR DE 11px A 8px
+                        iconSize: [75, 16],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
+                        iconAnchor: [37, 8],
+                        popupAnchor: [0, -12],
+                    });
+                    L.marker([d.lat, d.lon], { icon: cleanLabel, interactive: true })
+                        .bindPopup(popup)
+                        .addTo(circleLayer);
 
-        // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
-        } else {
-            if (esRojo) {
-                const moscaIconZoom = L.divIcon({
-                    className: "",
-                    html: `
+                    // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
+                } else {
+                    if (esRojo) {
+                        const moscaIconZoom = L.divIcon({
+                            className: "",
+                            html: `
                         <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
                             <div style="font-size:16px;
                                 animation:flotar 1.2s ease-in-out infinite;
@@ -877,61 +879,61 @@ function renderPuntos() {
                             ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
                         </div>
                     `,
-                    iconSize:    [100, 40],
-                    iconAnchor:  [50, 40],
-                    popupAnchor: [0, -42],
-                });
-                L.marker([d.lat, d.lon], { icon: moscaIconZoom })
-                    .bindPopup(popup)
-                    .addTo(circleLayer);
+                            iconSize: [100, 40],
+                            iconAnchor: [50, 40],
+                            popupAnchor: [0, -42],
+                        });
+                        L.marker([d.lat, d.lon], { icon: moscaIconZoom })
+                            .bindPopup(popup)
+                            .addTo(circleLayer);
 
-            } else {
-                const labelIcon = L.divIcon({
-                    className: "turno-label",
-                    html: `
-                        <div style="
-                            background:${color};
-                            color:#fff;
-                            padding:2px 7px;
-                            border-radius:10px;
-                            font-size:10px;
-                            font-weight:800;
-                            border:1.5px solid rgba(255,255,255,0.85);
-                            box-shadow:0 1px 4px rgba(0,0,0,0.4);
-                            white-space:nowrap;text-align:center;
-                            line-height:1.4;cursor:pointer;
-                        ">${modLabel}-${turnoLabel}</div>
-                    `,
-                    iconSize:    [80, 20],
-                    iconAnchor:  [40, 28],
-                    popupAnchor: [0, -30],
-                });
+                    } else {
+                        const labelIcon = L.divIcon({
+                            className: "turno-label",
+                            html: `
+        <div style="
+            background:${color};
+            color:${d.capturas === 0 ? '#000' : '#fff'};;
+            padding:2px 7px;
+            border-radius:10px;
+            font-size:10px;
+            font-weight:800;
+            border:1.5px solid rgba(255,255,255,0.85);
+            box-shadow:0 1px 4px rgba(0,0,0,0.4);
+            white-space:nowrap;text-align:center;
+            line-height:1.4;cursor:pointer;
+        ">${modLabel}-${turnoLabel}</div>
+    `,
+                            iconSize: [80, 20],
+                            iconAnchor: [40, 28],
+                            popupAnchor: [0, -30],
+                        });
 
-                L.circleMarker([d.lat, d.lon], {
-                    radius:      6,
-                    fillColor:   color,
-                    color:       '#000',
-                    weight:      1,
-                    opacity:     1,
-                    fillOpacity: 0.9
-                }).bindPopup(popup).addTo(circleLayer);
+                        L.circleMarker([d.lat, d.lon], {
+                            radius: 6,
+                            fillColor: color,
+                            color: '#000',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.9
+                        }).bindPopup(popup).addTo(circleLayer);
 
-                L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
-                    .bindPopup(popup)
-                    .addTo(circleLayer);
-            }
+                        L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
+                            .bindPopup(popup)
+                            .addTo(circleLayer);
+                    }
+                }
+            });
+
+            // ── Guardar capas globalmente ──
+            window._badgeLayer = badgeLayer;
+            window._circleLayer = circleLayer;
+
+            _actualizarCapasPorZoom();
+
+            console.log(`✅ Badges: ${lotes.length} turnos | Círculos: ${lotesRaw.length} lotes`);
         }
-    });
-
-    // ── Guardar capas globalmente ──
-    window._badgeLayer  = badgeLayer;
-    window._circleLayer = circleLayer;
-
-    _actualizarCapasPorZoom();
-
-    console.log(`✅ Badges: ${lotes.length} turnos | Círculos: ${lotesRaw.length} lotes`);
-}
-const ZOOM_CIRCULOS = 16;
+        const ZOOM_CIRCULOS = 16;
 
         function _actualizarCapasPorZoom() {
             if (!window._badgeLayer || !window._circleLayer) return;
@@ -957,7 +959,7 @@ const ZOOM_CIRCULOS = 16;
             if (!panel) return;
 
             // ── Filtrar solo los que superan umbral ──
-            const alertas = lotes.filter(d => d.capturas > 2);
+            const alertas = lotes.filter(d => d.capturas > 3);
 
             if (alertas.length === 0) {
                 panel.style.display = 'none';
@@ -988,7 +990,7 @@ const ZOOM_CIRCULOS = 16;
 
             let html = `
         <div class="alert-panel-title">🔴 Alertas Fundo / Turno</div>
-        <div class="alert-panel-sub">Capturas > 2 · Fundo → Turno (mayor a menor)</div>
+<div class="alert-panel-sub">Capturas > 3 · Fundo → Turno (mayor a menor)</div>
     `;
 
             fundosOrdenados.forEach(fundo => {
@@ -1254,26 +1256,30 @@ const ZOOM_CIRCULOS = 16;
 
             if (modo === "Normal") {
                 legendHTML += `
-            <div class="legend-section">
-                <div class="legend-section-title">Semáforo por capturas:</div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#00FF00;"></div>
-                    <div class="legend-label">0 capturas</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#FFFF00;"></div>
-                    <div class="legend-label">1 captura</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#FFA500;"></div>
-                    <div class="legend-label">2 capturas</div>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background:#FF0000;"></div>
-                    <div class="legend-label">> 2 capturas 🪰</div>
-                </div>
-            </div>
-        `;
+    <div class="legend-section">
+        <div class="legend-section-title">Semáforo por capturas:</div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#FFFFFF;border:1px solid #aaa;"></div>
+            <div class="legend-label">0 capturas</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#00FF00;"></div>
+            <div class="legend-label">1 captura</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#FFFF00;"></div>
+            <div class="legend-label">2 capturas</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#FFA500;"></div>
+            <div class="legend-label">3 capturas</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#FF0000;"></div>
+            <div class="legend-label">> 3 capturas 🪰</div>
+        </div>
+    </div>
+`;
             } else if (modo === "Espectral") {
                 legendHTML += `
             <div class="legend-section">
@@ -1282,12 +1288,12 @@ const ZOOM_CIRCULOS = 16;
                     width: 100%;
                     height: 16px;
                     border-radius: 4px;
-                    background: linear-gradient(to right, #00FF00, #FFFF00, #FFA500, #FF0000);
-                    margin: 6px 0;
+background: linear-gradient(to right, #90EE90, #00FF00, #FFFF00, #FFA500, #FF0000);                    
+margin: 6px 0;
                     border: 1px solid #ccc;
                 "></div>
                 <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;">
-                    <span>0</span><span>1</span><span>2</span><span>>2 🪰</span>
+<span>0</span><span>1</span><span>2</span><span>3</span><span>>3 🪰</span>
                 </div>
             </div>
             <div class="legend-section">
@@ -1299,25 +1305,19 @@ const ZOOM_CIRCULOS = 16;
             } else if (modo === "Curvas de Nivel") {
                 legendHTML += `
             <div class="legend-section">
-                <div class="legend-section-title">Relleno gaussiano:</div>
-                <div style="
-                    width: 100%;
-                    height: 16px;
-                    border-radius: 4px;
-                    background: linear-gradient(to right, #00FF00, #FFFF00, #FFA500, #FF0000);
-                    margin: 6px 0;
-                    border: 1px solid #ccc;
-                "></div>
-                <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;">
-                    <span>0</span><span>1</span><span>2</span><span>>2 🪰</span>
-                </div>
-            </div>
-            <div class="legend-section">
-                <div style="font-size:9px;color:#333;line-height:1.8;">
-                    ─── <b>Negro:</b> Curvas de nivel<br>
-                    ⚫ Puntos: datos reales por lote
-                </div>
-            </div>
+    <div class="legend-section-title">Relleno gaussiano:</div>
+    <div style="
+        width: 100%;
+        height: 16px;
+        border-radius: 4px;
+background: linear-gradient(to right, #90EE90, #00FF00, #FFFF00, #FFA500, #FF0000);                    
+margin: 6px 0;
+        border: 1px solid #ccc;
+    "></div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;">
+        <span>0</span><span>1</span><span>2</span><span>3</span><span>>3 🪰</span>
+    </div>
+</div>
         `;
             }
 
@@ -1407,19 +1407,31 @@ const ZOOM_CIRCULOS = 16;
             });
 
             // ── ETIQUETAS NO ROJAS ──
-            document.getElementById('chk_etiquetas').addEventListener('change', function () {
-                window._etiquetasVisible = this.checked;
-                // Reconstruir markers respetando el nuevo estado
-                if (window._badgeLayer) {
-                    map.removeLayer(window._badgeLayer);
-                    window._badgeLayer = null;
-                }
-                if (window._circleLayer) {
-                    map.removeLayer(window._circleLayer);
-                    window._circleLayer = null;
-                }
-                renderPuntos();
-            });
+            // ── ETIQUETAS NO ROJAS ──
+document.getElementById('chk_etiquetas').addEventListener('change', function () {
+    window._etiquetasVisible = this.checked;
+
+    if (window._badgeLayer) {
+        window._badgeLayer.eachLayer(function(layer) {
+            const icon = layer.options?.icon?.options?.html || "";
+            // Ocultar solo los que NO son rojos (no tienen background:#FF0000)
+            if (!icon.includes("background:#FF0000")) {
+                const el = layer.getElement();
+                if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
+            }
+        });
+    }
+
+    if (window._circleLayer) {
+        window._circleLayer.eachLayer(function(layer) {
+            const icon = layer.options?.icon?.options?.html || "";
+            if (!icon.includes("background:#FF0000")) {
+                const el = layer.getElement();
+                if (el) el.style.visibility = window._etiquetasVisible ? "visible" : "hidden";
+            }
+        });
+    }
+});
 
             // ── PANEL ALERTAS ──
             document.getElementById('chk_alertas').addEventListener('change', function () {
@@ -1481,7 +1493,7 @@ const ZOOM_CIRCULOS = 16;
             if (alert) alert.style.display = 'none';   // ← ocultar panel alertas
             if (legend) legend.style.display = 'block';
         }
-function activarModoPNGGeneral() {
+        function activarModoPNGGeneral() {
             _prepararModoPNG();
 
             const bounds = L.latLngBounds();
@@ -1506,10 +1518,10 @@ function activarModoPNGGeneral() {
             }
 
             if (bounds.isValid()) {
-                map.fitBounds(bounds, { 
+                map.fitBounds(bounds, {
                     padding: [50, 50],      // ← Reducimos el margen interno para equilibrar
                     maxZoom: 14,            // ◄── CAMBIA DE 16 A 14 O 15 PARA ALEJAR EL MAPA
-                    animate: false 
+                    animate: false
                 });
             }
 

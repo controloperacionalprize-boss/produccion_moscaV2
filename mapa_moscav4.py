@@ -106,10 +106,11 @@ def fundo_to_aq(fundo) -> str | None:
 
 def get_semaforo_category(val: float) -> int:
     v = float(val)
-    if v <= 0:    return 0
-    elif v < 1.5: return 1
-    elif v < 2.5: return 2
-    else:         return 3
+    if v <= 0:    return 0  # blanco
+    elif v <= 1:  return 1  # verde
+    elif v <= 2:  return 2  # amarillo
+    elif v <= 3:  return 3  # naranja
+    else:         return 4  # rojo
 
 
 # ============================================================
@@ -361,21 +362,21 @@ def generar_contornos_gauss(
 
     # ── Semáforo fijo: verde=0, amarillo=1, naranja=2, rojo=3+ ──
     vmin = 0
-    vmax = max(3.0, z_max_real)  # mínimo 3, sube si hay capturas muy altas
-
+    vmax = max(4.0, z_max_real)
     colors_semaforo = [
-        (0 / vmax, "#00FF00"),  # verde    → 0
-        (1 / vmax, "#FFFF00"),  # amarillo → 1
-        (2 / vmax, "#FFA500"),  # naranja  → 2
-        (3 / vmax, "#FF0000"),  # rojo     → 3+
-        (1.0,      "#FF0000"),  # rojo     → hasta el máximo
-    ]
+    (0 / vmax, "#90EE90"),  # verde tenue → 0
+    (1 / vmax, "#00FF00"),  # verde       → 1
+    (2 / vmax, "#FFFF00"),  # amarillo    → 2
+    (3 / vmax, "#FFA500"),  # naranja     → 3
+    (4 / vmax, "#FF0000"),  # rojo        → >3
+    (1.0,      "#FF0000"),
+]
     cmap = mcolors.LinearSegmentedColormap.from_list(
         "semaforo", colors_semaforo, N=256
     )
 
     # ── Líneas de contour en valores enteros del semáforo ──
-    levels_lines_base = [l for l in [1, 2, 3] if z_min < l < z_max_real]
+    levels_lines_base = [l for l in [1, 2, 3, 4] if z_min < l < z_max_real]
 
     if num_niveles > 3:
         extra = np.linspace(z_min, z_max_real, num_niveles + 1)[1:-1]
@@ -913,16 +914,18 @@ with st.sidebar.expander("🔍 Filtros de datos", expanded=True):
 
 # ── FILTRO SEMAFORIZACIÓN ──
 st.sidebar.markdown("**Filtro por semaforización:**")
-sel_sem_verde    = st.sidebar.checkbox("🟢 0 capturas",   value=True, key="sem_verde")
-sel_sem_amarillo = st.sidebar.checkbox("🟡 1 captura",    value=True, key="sem_amarillo")
-sel_sem_naranja  = st.sidebar.checkbox("🟠 2 capturas",   value=True, key="sem_naranja")
-sel_sem_rojo_f   = st.sidebar.checkbox("🔴 > 2 capturas", value=True, key="sem_rojo")
+sel_sem_blanco   = st.sidebar.checkbox("⚪ 0 capturas",   value=True, key="sem_blanco")
+sel_sem_verde    = st.sidebar.checkbox("🟢 1 captura",    value=True, key="sem_verde")
+sel_sem_amarillo = st.sidebar.checkbox("🟡 2 capturas",   value=True, key="sem_amarillo")
+sel_sem_naranja  = st.sidebar.checkbox("🟠 3 capturas",   value=True, key="sem_naranja")
+sel_sem_rojo_f   = st.sidebar.checkbox("🔴 > 3 capturas", value=True, key="sem_rojo")
 
 cats_permitidas = set()
-if sel_sem_verde:    cats_permitidas.add(0)
-if sel_sem_amarillo: cats_permitidas.add(1)
-if sel_sem_naranja:  cats_permitidas.add(2)
-if sel_sem_rojo_f:   cats_permitidas.add(3)
+if sel_sem_blanco:   cats_permitidas.add(0)
+if sel_sem_verde:    cats_permitidas.add(1)
+if sel_sem_amarillo: cats_permitidas.add(2)
+if sel_sem_naranja:  cats_permitidas.add(3)
+if sel_sem_rojo_f:   cats_permitidas.add(4)
 
 if not dff.empty:
     dff["_cat"] = dff["capturas"].apply(get_semaforo_category)
@@ -1111,11 +1114,12 @@ viz_config = {
     "min_mag":           min_mag           if "min_mag"           in locals() else 0.05,
     "color_flechas":     color_flechas     if "color_flechas"     in locals() else "#1a1aff",
     "semaforización": {
-        "verde":    sel_sem_verde,
-        "amarillo": sel_sem_amarillo,
-        "naranja":  sel_sem_naranja,
-        "rojo":     sel_sem_rojo_f,
-    }
+    "blanco":   sel_sem_blanco,
+    "verde":    sel_sem_verde,
+    "amarillo": sel_sem_amarillo,
+    "naranja":  sel_sem_naranja,
+    "rojo":     sel_sem_rojo_f,
+}
 }
 
 # ── Serializar desde lotes_markers (ya tienen centroide KMZ) ──
