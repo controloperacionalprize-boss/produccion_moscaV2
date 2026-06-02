@@ -1362,33 +1362,45 @@ with col_png:
                     except Exception:
                         pass
 
-                    # ── Forzar carga de imágenes de markers ──
+                    page.wait_for_timeout(2000)
+
+                    # ── Deshabilitar animaciones CSS (fix para emojis con animation) ──
                     try:
                         page.evaluate("""
-                            () => new Promise((resolve) => {
-                                const imgs = document.querySelectorAll(
-                                    '.leaflet-marker-icon, .leaflet-marker-shadow, img'
-                                );
-                                let pending = imgs.length;
-                                if (pending === 0) { resolve(); return; }
-                                imgs.forEach(img => {
-                                    if (img.complete) {
-                                        pending--;
-                                        if (pending === 0) resolve();
-                                    } else {
-                                        img.onload  = () => { pending--; if (pending === 0) resolve(); };
-                                        img.onerror = () => { pending--; if (pending === 0) resolve(); };
+                            () => {
+                                // Detener todas las animaciones CSS
+                                const style = document.createElement('style');
+                                style.textContent = `
+                                    *, *::before, *::after {
+                                        animation-duration: 0s !important;
+                                        animation-delay: 0s !important;
+                                        transition-duration: 0s !important;
+                                        transition-delay: 0s !important;
                                     }
-                                });
-                                setTimeout(resolve, 8000); // máximo 8s
-                            })
-                        """)
-                    except Exception:
-                        pass
+                                `;
+                                document.head.appendChild(style);
 
-                    # ── Esperar tiles Leaflet ──
-                    try:
-                        page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
+                                // Forzar visibilidad de todos los markers
+                                document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+                                    el.style.display    = 'block';
+                                    el.style.visibility = 'visible';
+                                    el.style.opacity    = '1';
+                                });
+
+                                // Forzar visibilidad de divs con emoji mosca
+                                document.querySelectorAll('.leaflet-marker-icon div').forEach(el => {
+                                    el.style.animation  = 'none';
+                                    el.style.display    = 'block';
+                                    el.style.visibility = 'visible';
+                                    el.style.opacity    = '1';
+                                });
+
+                                // Invalidar tamaño del mapa para forzar redibujado
+                                if (window._map) {
+                                    window._map.invalidateSize(true);
+                                }
+                            }
+                        """)
                     except Exception:
                         pass
 
@@ -1405,7 +1417,7 @@ with col_png:
                         pass
 
                     # ── Pausa final ──
-                    page.wait_for_timeout(5000)
+                    page.wait_for_timeout(4000)
 
                     # ── Capturar ──
                     try:
