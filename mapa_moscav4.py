@@ -1328,67 +1328,65 @@ with col_pub:
 with col_png:
     if st.button("🖼️ PNG", use_container_width=True, key="btn_png"):
         with st.spinner("Capturando mapa..."):
-            driver   = None
             tmp_html = None
             try:
-                from selenium import webdriver
-                from selenium.webdriver.chrome.options import Options
-                from selenium.webdriver.chrome.service import Service
-                from selenium.webdriver.common.by import By
+                from playwright.sync_api import sync_playwright
                 from PIL import Image
-                import io, platform, time, tempfile, os
+                import io, tempfile, os
 
+                # ── Instalar browsers si no están (primera vez en cloud) ──
+                os.system("playwright install chromium")
+
+                # ── Guardar HTML temporal ──
                 tmp_html = tempfile.NamedTemporaryFile(
                     delete=False, suffix=".html", mode="w", encoding="utf-8"
                 )
                 tmp_html.write(html_with_data)
                 tmp_html.close()
 
-                opts = Options()
-                opts.add_argument("--headless=new")
-                opts.add_argument("--no-sandbox")
-                opts.add_argument("--disable-dev-shm-usage")
-                opts.add_argument("--disable-gpu")
-                opts.add_argument("--window-size=1920,1080")
-                opts.add_argument("--force-device-scale-factor=2")  # doble resolución
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=[
+                            "--no-sandbox",
+                            "--disable-dev-shm-usage",
+                            "--disable-gpu",
+                        ]
+                    )
+                    page = browser.new_page(
+                        viewport={"width": 1920, "height": 1080},
+                        device_scale_factor=2,
+                    )
 
-                if platform.system() == "Windows":
-                    from webdriver_manager.chrome import ChromeDriverManager
-                    service = Service(ChromeDriverManager().install())
-                else:
-                    opts.binary_location = "/usr/bin/chromium"
-                    service = Service("/usr/bin/chromedriver")
+                    # ── Cargar HTML ──
+                    page.goto(f"file://{tmp_html.name}")
+                    page.wait_for_timeout(5000)  # esperar carga del mapa
 
-                driver = webdriver.Chrome(service=service, options=opts)
-                driver.set_window_size(1920, 1080)
-                driver.get(f"file:///{tmp_html.name}")
+                    # ── Activar modo PNG ──
+                    try:
+                        page.evaluate("activarModoPNGGeneral()")
+                        page.wait_for_timeout(5000)  # esperar tiles + markers
+                    except Exception:
+                        pass  # si la función no existe, captura igual
 
-                # ── Esperar carga inicial del mapa ──
-                time.sleep(5)
+                    # ── Capturar elemento mapContainer o pantalla completa ──
+                    try:
+                        map_el   = page.locator("#mapContainer")
+                        png_bytes = map_el.screenshot()
+                    except Exception:
+                        png_bytes = page.screenshot(full_page=False)
 
-                # ── Activar modo PNG general ──
-                driver.execute_script("activarModoPNGGeneral();")
-                time.sleep(5)  # esperar fitBounds + tiles + markers
+                    browser.close()
 
-                # ── Capturar solo el mapContainer ──
-                try:
-                    map_el    = driver.find_element(By.ID, "mapContainer")
-                    png_bytes = map_el.screenshot_as_png
-
-                    # Mostrar resolución en sidebar
-                    img = Image.open(io.BytesIO(png_bytes))
-                    st.sidebar.caption(f"📐 Resolución: {img.width}×{img.height}px")
-
-                except Exception:
-                    png_bytes = driver.get_screenshot_as_png()
+                # ── Mostrar resolución ──
+                img = Image.open(io.BytesIO(png_bytes))
+                st.sidebar.caption(f"📐 {img.width}×{img.height}px")
 
                 # ── Subir PNG a GitHub ──
                 ok_png, res_png = _subir_png_a_github(png_bytes)
                 if ok_png:
                     st.sidebar.success("✅ PNG guardado en GitHub")
-                    st.sidebar.markdown(
-                        f"[🔗 Ver PNG]({res_png})", unsafe_allow_html=True
-                    )
+                    st.sidebar.markdown(f"[🔗 Ver PNG]({res_png})", unsafe_allow_html=True)
                 else:
                     st.sidebar.warning(f"PNG local OK, GitHub falló: {res_png}")
 
@@ -1407,10 +1405,7 @@ with col_png:
                 st.sidebar.error(traceback.format_exc())
             finally:
                 try:
-                    if driver: driver.quit()
-                except Exception:
-                    pass
-                try:
-                    if tmp_html: os.unlink(tmp_html.name)
+                    if tmp_html:
+                        os.unlink(tmp_html.name)
                 except Exception:
                     pass
