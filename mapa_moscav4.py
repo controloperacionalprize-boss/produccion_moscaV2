@@ -1364,43 +1364,53 @@ with col_png:
 
                     page.wait_for_timeout(2000)
 
-                    # ── Deshabilitar animaciones CSS (fix para emojis con animation) ──
+                    # ── Fix específico para emojis 🪰 en Playwright headless ──
                     try:
                         page.evaluate("""
                             () => {
-                                // Detener todas las animaciones CSS
+                                // 1. Detener animación flotar que bloquea render en headless
                                 const style = document.createElement('style');
                                 style.textContent = `
-                                    *, *::before, *::after {
-                                        animation-duration: 0s !important;
-                                        animation-delay: 0s !important;
-                                        transition-duration: 0s !important;
-                                        transition-delay: 0s !important;
+                                    * { 
+                                        animation: none !important; 
+                                        transition: none !important;
+                                    }
+                                    @keyframes flotar { 
+                                        0%, 50%, 100% { transform: translateX(-50%) translateY(0px); }
                                     }
                                 `;
                                 document.head.appendChild(style);
 
-                                // Forzar visibilidad de todos los markers
-                                document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
-                                    el.style.display    = 'block';
-                                    el.style.visibility = 'visible';
-                                    el.style.opacity    = '1';
-                                });
-
-                                // Forzar visibilidad de divs con emoji mosca
+                                // 2. Forzar tamaño visible de emojis mosca (en PNG mode son 7px — muy chico)
                                 document.querySelectorAll('.leaflet-marker-icon div').forEach(el => {
-                                    el.style.animation  = 'none';
-                                    el.style.display    = 'block';
-                                    el.style.visibility = 'visible';
-                                    el.style.opacity    = '1';
+                                    const txt = el.textContent || '';
+                                    if (txt.includes('🪰')) {
+                                        el.style.fontSize    = '20px';
+                                        el.style.animation   = 'none';
+                                        el.style.visibility  = 'visible';
+                                        el.style.opacity     = '1';
+                                        el.style.display     = 'block';
+                                        el.style.transform   = 'none';
+                                    }
                                 });
 
-                                // Invalidar tamaño del mapa para forzar redibujado
-                                if (window._map) {
-                                    window._map.invalidateSize(true);
-                                }
+                                // 3. Forzar visibilidad de todos los markers
+                                document.querySelectorAll('.leaflet-marker-icon').forEach(el => {
+                                    el.style.visibility = 'visible';
+                                    el.style.opacity    = '1';
+                                    el.style.display    = 'block';
+                                });
+
+                                // 4. Invalidar mapa para forzar redibujado
+                                if (window.map) window.map.invalidateSize(true);
                             }
                         """)
+                    except Exception:
+                        pass
+
+                    # ── Esperar tiles ──
+                    try:
+                        page.wait_for_selector(".leaflet-tile-loaded", timeout=15000)
                     except Exception:
                         pass
 
@@ -1410,14 +1420,8 @@ with col_png:
                     except Exception:
                         pass
 
-                    # ── Esperar curvas SVG ──
-                    try:
-                        page.wait_for_selector(".leaflet-zoom-animated path", timeout=10000)
-                    except Exception:
-                        pass
-
                     # ── Pausa final ──
-                    page.wait_for_timeout(4000)
+                    page.wait_for_timeout(5000)
 
                     # ── Capturar ──
                     try:
