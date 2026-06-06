@@ -73,16 +73,21 @@ def norm_tur(val) -> int | None:
     return None
 
 def norm_lote(val) -> str | None:
-    """Normalizar lote: '1.0' → '1', '115-B' → '115B'"""
     if not val:
         return None
     s = str(val).strip().upper()
     if not s or s in ('NAN', 'NONE', ''):
         return None
+    # "1.0" → "1"
     match = re.match(r'^(\d+)\.0+$', s)
     if match:
-        return match.group(1)
+        return str(int(match.group(1)))
+    # quitar guiones
     s = s.replace('-', '')
+    # quitar letras sufijo Y ceros adelante: "115B"→"115", "02"→"2", "115-B"→"115"
+    match = re.match(r'^(\d+)[A-Z]*$', s)
+    if match:
+        return str(int(match.group(1)))
     return s if s else None
 
 def fundo_to_aq(fundo) -> str | None:
@@ -101,6 +106,7 @@ def fundo_to_aq(fundo) -> str | None:
         'SANTA TERESA': 'AQ2',
         # AQ2 - Fundo 3
         'AYLLU ALLPA':  'AQ2',
+        'AMPLIACION':'AQ2'
     }
     return mapping.get(fundo_upper)
 
@@ -145,7 +151,6 @@ def calcular_lotes_con_centroide(valid: pd.DataFrame, kmz_polygons: list[dict]) 
         mod_n    = norm_mod(str(row.get("modulo", "")))
         tur_n    = norm_tur(str(row.get("turno",  "")))
         lote_n   = norm_lote(str(row.get("lote",  "")))
-
         if not fundo_aq or not mod_n or not tur_n:
             sin_match += 1
             continue
@@ -652,7 +657,7 @@ def load_kmz_local(kmz_path: str = "data/MODULOS_PRIZE_PAIJAN.kmz"):
 
                     if not lote:
                         lote = f"PZ_{name.replace(' ', '_').strip()}"
-
+                    lote_n_debug = norm_lote(str(lote))
                     # ── AGREGAR POLÍGONO VÁLIDO ──
                     polygons.append({
                         "name":      name or f"Polígono {len(polygons)+1}",
@@ -695,7 +700,140 @@ def load_kmz_local(kmz_path: str = "data/MODULOS_PRIZE_PAIJAN.kmz"):
         st.error(f"📋 Traceback:\n```\n{traceback.format_exc()}\n```")
         return []
 
+@st.cache_data(show_spinner="Cargando puntos GPS de trampas…")
+def load_kmz_puntos(kmz_bytes_dict: dict) -> dict:
+    """
+    Carga 4 KMZ de puntos de trampas y retorna un índice:
+    { norm_lote: {"lat": float, "lon": float, "fundo_aq": str} }
+    
+    kmz_bytes_dict: { "AQ1": bytes, "AA": bytes, "VV": bytes, "ST": bytes }
+    """
+    import zipfile, re
+    from lxml import etree
 
+    # ── Mapeo de prefijo KMZ → fundo_aq ──
+    PREFIJO_MAP = {
+        "AQ1": "AQ1",  # Arena Azul
+        "AQ":  "AQ1",  # Arena Azul variante
+        "AA":  "AQ2",  # Ayllu Allpa
+        "VV":  "AQ2",  # Vivadis
+        "ST":  "AQ2",  # Santa Teresa
+    }
+
+    def extraer_lote_de_nombre(name: str) -> str | None:
+        """
+        Extrae el lote normalizado del nombre del placemark:
+        PT_ST_240      → "240"
+        PT_AA_115B     → "115"
+        PT_AA_113      → "113"
+        PT_AQ_ML_T2L34 → "34"
+        PT_AQ1_JT_T10_Lt86 → "86"
+        PT_VV-27       → "27"
+        """
+        n = name.strip().upper()
+
+        # PT_AQ1_JT_T{n}_Lt{lote} → lote después de Lt
+        m = re.search(r'LT(\d+)', n)
+        if m:
+            return str(int(m.group(1)))
+
+        # PT_AQ_ML_T{n}L{lote} → lote después de L (pero no LT)
+        m = re.search(r'T\d+L(\d+)', n)
+        if m:
+            return str(int(m.group(1)))
+
+        # PT_VV-{lote} → número después de guion
+        m = re.search(r'VV[-_](\d+)', n)
+        if m:
+            return str(int(m.group(1)))
+
+        # PT_ST_{lote} → número al final
+        m = re.search(r'ST[-_](\d+)', n)
+        if m:
+            return str(int(m.group(1)))
+
+        # PT_AA_{lote} → alfanumérico al final (115B → 115, 113 → 113)
+        m = re.search(r'AA[-_](\d+)', n)
+        if m:
+            return str(int(m.group(1)))
+
+        # Fallback: último número en el nombre
+        nums = re.findall(r'\d+', n)
+        if nums:
+            return str(int(nums[-1]))
+
+        return None
+
+    def extraer_fundo_aq_de_nombre(name: str) -> str | None:
+        n = name.strip().upper()
+        if "AQ1" in n or re.search(r'PT_AQ', n):
+            return "AQ1"
+        if "AA" in n:
+            return "AQ2"
+        if "VV" in n:
+            return "AQ2"
+        if "ST" in n:
+            return "AQ2"
+        return None
+
+    puntos_index = {}  # { "AQ1|115": {"lat":..., "lon":...} }
+    total = 0
+    ok    = 0
+
+    for kmz_key, kmz_bytes in kmz_bytes_dict.items():
+        if not kmz_bytes:
+            continue
+        try:
+            import io
+            with zipfile.ZipFile(io.BytesIO(kmz_bytes), 'r') as kmz:
+                kml_files = [f for f in kmz.namelist() if f.lower().endswith('.kml')]
+                if not kml_files:
+                    continue
+                kml_content = kmz.read(kml_files[0])
+
+            parser = etree.XMLParser(recover=True, encoding='utf-8')
+            root   = etree.fromstring(kml_content, parser=parser)
+
+            placemarks = root.xpath('.//*[local-name()="Placemark"]')
+
+            for pm in placemarks:
+                total += 1
+
+                # ── Nombre ──
+                name_el = pm.xpath('.//*[local-name()="name"]/text()')
+                name    = name_el[0].strip() if name_el else ""
+                if not name:
+                    continue
+
+                # ── Coordenadas (solo Point) ──
+                coord_el = pm.xpath('.//*[local-name()="Point"]//*[local-name()="coordinates"]/text()')
+                if not coord_el:
+                    continue
+                parts = coord_el[0].strip().split(',')
+                if len(parts) < 2:
+                    continue
+                try:
+                    lon = float(parts[0])
+                    lat = float(parts[1])
+                except ValueError:
+                    continue
+
+                # ── Extraer lote y fundo_aq ──
+                lote_n   = extraer_lote_de_nombre(name)
+                fundo_aq = extraer_fundo_aq_de_nombre(name)
+
+                if not lote_n or not fundo_aq:
+                    continue
+
+                key = f"{fundo_aq}|{lote_n}"
+                puntos_index[key] = {"lat": lat, "lon": lon, "name": name}
+                ok += 1
+
+        except Exception as e:
+            st.sidebar.warning(f"⚠️ Error KMZ puntos {kmz_key}: {e}")
+
+    st.sidebar.caption(f"📍 Puntos GPS: {ok}/{total} cargados")
+    return puntos_index
 # ============================================================
 # CARGAR DATOS EXCEL
 # ============================================================
@@ -1175,7 +1313,61 @@ html_with_data = f"""
 </script>
 {html_content}
 """
+# ── TABLA DE MATCHES / NO MATCHES ──
+if lotes_markers:
+    import pandas as pd
+    
+    con_kmz  = [m for m in lotes_markers if m.get("con_kmz")]
+    sin_kmz  = [m for m in lotes_markers if not m.get("con_kmz")]
 
+    # Construir tabla de sin match
+    rows_sin = []
+    for row in valid.to_dict("records"):
+        fundo_aq = fundo_to_aq(str(row.get("fundo", "")))
+        mod_n    = norm_mod(str(row.get("modulo", "")))
+        tur_n    = norm_tur(str(row.get("turno",  "")))
+        lote_n   = norm_lote(str(row.get("lote",  "")))
+        if not fundo_aq or not mod_n or not tur_n:
+            continue
+        key = f"{fundo_aq}|{mod_n}|{tur_n}|{lote_n}"
+        # buscar si tiene match
+        found = any(m["key_kmz"] == key for m in lotes_markers if m.get("con_kmz"))
+        if not found:
+            # buscar similares en KMZ
+            similares = [
+                k for k in [
+                    f"{p['fundo_aq']}|{p['mod_n']}|{p['tur_n']}|{norm_lote(str(p['lote_name']))}"
+                    for p in kmz_polygons
+                ]
+                if k.split('|')[0] == (fundo_aq or '') 
+                and k.split('|')[1] == str(mod_n or '')
+            ]
+            rows_sin.append({
+                "Fundo":    row.get("fundo", ""),
+                "Módulo":   row.get("modulo", ""),
+                "Turno":    row.get("turno",  ""),
+                "Lote":     row.get("lote",   ""),
+                "Key Excel": key,
+                "Keys KMZ disponibles": ", ".join(sorted(set(similares))[:4]) or "❌ Sin módulo en KMZ",
+            })
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("✅ Con match KMZ", len(con_kmz))
+    col2.metric("⚠️ Sin match KMZ", len(rows_sin))
+    col3.metric("📊 Total trampas", len(lotes_markers))
+
+    if rows_sin:
+        with st.expander(f"⚠️ {len(rows_sin)} lotes sin match KMZ — ver detalle", expanded=False):
+            df_sin = pd.DataFrame(rows_sin)
+            st.dataframe(
+                df_sin,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Key Excel":             st.column_config.TextColumn(width="medium"),
+                    "Keys KMZ disponibles":  st.column_config.TextColumn(width="large"),
+                }
+            )
 st.components.v1.html(html_with_data, height=950, width=None)
 
 # ============================================================

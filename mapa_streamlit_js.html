@@ -467,9 +467,14 @@
             if (!val) return null;
             let s = String(val).trim().toUpperCase();
             if (!s || s === 'NAN' || s === 'NONE') return null;
-            const match = s.match(/^(\d+)\.0+$/);
-            if (match) return match[1];
+            // "1.0" → "1"
+            const match1 = s.match(/^(\d+)\.0+$/);
+            if (match1) return String(parseInt(match1[1], 10));
+            // quitar guiones
             s = s.replace(/-/g, '');
+            // quitar letras sufijo Y ceros adelante: "115B"→"115", "02"→"2"
+            const match2 = s.match(/^(\d+)[A-Z]*$/);
+            if (match2) return String(parseInt(match2[1], 10));
             return s;
         }
 
@@ -483,6 +488,8 @@
                 'AYLLU ALLPA': 'AQ1',
                 'SANTA TERESA': 'AQ2',
                 'VIVADIS': 'AQ2',
+                'AMPLIACION':   'AQ2',   // ← AGREGAR
+
             };
             return mapping[fundoUpper] || null;
         }
@@ -689,30 +696,30 @@
         // ============================================================
         // RENDERIZAR PUNTOS (badges por turno + círculos por lote)
         // ============================================================
-        function renderPuntos() {
-            const lotes = streamlitData.lotes || [];
-            const lotesRaw = streamlitData.data || [];
+function renderPuntos() {
+    const lotes = streamlitData.lotes || [];
+    const lotesRaw = streamlitData.data || [];
 
-            if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+    if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
 
-            // ── Capa 1: badges por turno (zoom lejano) ──
-            const badgeLayer = L.featureGroup();
+    // ── Capa 1: badges por turno (zoom lejano) ──
+    const badgeLayer = L.featureGroup();
 
-            lotes.forEach(d => {
-                const color = getColorByCapturas(d.capturas);
-                const esRojo = d.capturas > 3;
-                const turnoLabel = d.turno
-                    ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
-                    : "";
-                const modLabel = d.modulo
-                    ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
-                    : "";
+    lotes.forEach(d => {
+        const color = getColorByCapturas(d.capturas);
+        const esRojo = d.capturas > 3;
+        const turnoLabel = d.turno ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1') : "";
+        const modLabel   = d.modulo ? d.modulo.replace(/.*?(\d+).*/i, 'M$1') : "";
+        const lotesStr   = Array.isArray(d.lotes) && d.lotes.length > 0
+            ? d.lotes.join(", ") : (d.lote || "—");
 
-                const lotesStr = Array.isArray(d.lotes) && d.lotes.length > 0
-                    ? d.lotes.join(", ")
-                    : (d.lote || "—");
+        const fuente = d.con_punto_gps
+            ? "📍 GPS trampa (KMZ puntos)"
+            : d.con_kmz
+                ? "🔷 Centroide lote (KMZ polígono)"
+                : "📌 Coordenada Excel";
 
-                const popup = `
+        const popup = `
             <div style="font-family:Arial,sans-serif;font-size:12px;
                         line-height:1.6;min-width:160px;">
                 <b>Fundo:</b> ${d.fundo}<br>
@@ -721,218 +728,173 @@
                 <b>Lotes:</b> ${lotesStr}<br>
                 <b>N° lotes:</b> ${d.n_lotes || 1}<br>
                 <hr style="margin:4px 0;">
-                <b style="color:#d9534f;">${d.capturas} capturas totales</b>
+                <b style="color:#d9534f;">${d.capturas} capturas totales</b><br>
+                <span style="font-size:10px;color:#888;">${fuente}</span>
             </div>
         `;
 
-                // ─── MODO PNG: SOLO TEXTO LIMPIO ───
-                if (modoSoloAlertas) {
-                    const textColor = esRojo ? "#000000" : "#000000";
-                    const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+        if (modoSoloAlertas) {
+            const textLabel = esRojo
+                ? `${modLabel}-${turnoLabel} ${d.capturas}`
+                : `${modLabel}-${turnoLabel}`;
+            const cleanIcon = L.divIcon({
+                className: "",
+                html: `<div style="color:#000;font-weight:900;font-size:9px;
+                                   text-shadow:0 1px 3px rgba(255,255,255,0.8);">
+                           ${textLabel}
+                       </div>`,
+                iconSize: [80, 20], iconAnchor: [40, 10], popupAnchor: [0, -16],
+            });
+            L.marker([d.lat, d.lon], { icon: cleanIcon }).bindPopup(popup).addTo(badgeLayer);
 
-                    const cleanIcon = L.divIcon({
-                        className: "",
-                        html: `<div style="color:${textColor};font-weight:900;font-size:9px;text-shadow:0 1px 3px rgba(255,255,255,0.8);">${textLabel}</div>`,
-                        //                                                    ↑ CAMBIAR DE 12px A 9px
-                        iconSize: [80, 20],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
-                        iconAnchor: [40, 10],
-                        popupAnchor: [0, -16],
-                    });
-                    L.marker([d.lat, d.lon], { icon: cleanIcon })
-                        .bindPopup(popup)
-                        .addTo(badgeLayer);
-
-                    // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
-                } else {
-                    if (esRojo) {
-                        const moscaIcon = L.divIcon({
-                            className: "",
-                            html: `
+        } else {
+            if (esRojo) {
+                const moscaIcon = L.divIcon({
+                    className: "",
+                    html: `
                         <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
                             <div style="font-size:18px;
                                 animation:flotar 1.2s ease-in-out infinite;
                                 filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
                             <div style="
-                                background:#FF0000;
-                                color:#fff;
-                                padding:3px 10px;
-                                border-radius:14px;
-                                font-size:11px;
-                                font-weight:900;
+                                background:#FF0000;color:#fff;
+                                padding:3px 10px;border-radius:14px;
+                                font-size:11px;font-weight:900;
                                 border:2px solid rgba(255,255,255,0.85);
                                 box-shadow:0 2px 8px rgba(0,0,0,0.5);
                                 white-space:nowrap;text-align:center;line-height:1.4;
                             ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
-                        </div>
-                    `,
-                            iconSize: [80, 46],
-                            iconAnchor: [40, 46],
-                            popupAnchor: [0, -48],
-                        });
-                        L.marker([d.lat, d.lon], { icon: moscaIcon })
-                            .bindPopup(popup)
-                            .addTo(badgeLayer);
+                        </div>`,
+                    iconSize: [80, 46], iconAnchor: [40, 46], popupAnchor: [0, -48],
+                });
+                L.marker([d.lat, d.lon], { icon: moscaIcon }).bindPopup(popup).addTo(badgeLayer);
+            } else {
+                const badgeIcon = L.divIcon({
+                    className: "turno-label",
+                    html: `
+                        <div style="
+                            background:${color};
+                            color:${d.capturas === 0 ? '#000' : '#fff'};
+                            padding:3px 10px;border-radius:14px;
+                            font-size:11px;font-weight:800;
+                            border:2px solid rgba(255,255,255,0.85);
+                            box-shadow:0 2px 6px rgba(0,0,0,0.45);
+                            white-space:nowrap;text-align:center;
+                            line-height:1.4;cursor:pointer;
+                        ">${modLabel}-${turnoLabel}</div>`,
+                    iconSize: [80, 24], iconAnchor: [40, 12], popupAnchor: [0, -16],
+                });
+                L.marker([d.lat, d.lon], { icon: badgeIcon }).bindPopup(popup).addTo(badgeLayer);
+            }
+        }
+    });
 
-                    } else {
-                        const badgeIcon = L.divIcon({
-                            className: "turno-label",
-                            html: `
-        <div style="
-            background:${color};
-            color:${d.capturas === 0 ? '#000' : '#fff'};;
-            padding:3px 10px;
-            border-radius:14px;
-            font-size:11px;
-            font-weight:800;
-            border:2px solid rgba(255,255,255,0.85);
-            box-shadow:0 2px 6px rgba(0,0,0,0.45);
-            white-space:nowrap;text-align:center;
-            line-height:1.4;cursor:pointer;
-        ">${modLabel}-${turnoLabel}</div>
-    `,
-                            iconSize: [80, 24],
-                            iconAnchor: [40, 12],
-                            popupAnchor: [0, -16],
-                        });
-                        L.marker([d.lat, d.lon], { icon: badgeIcon })
-                            .bindPopup(popup)
-                            .addTo(badgeLayer);
-                    }
-                }
-            });
+    // ── Capa 2: círculos individuales por lote (zoom cercano) ──
+    const circleLayer = L.featureGroup();
 
-            // ── Capa 2: círculos individuales por lote (zoom cercano) ──
-            const circleLayer = L.featureGroup();
+    lotesRaw.forEach(d => {
+        const color = getColorByCapturas(d.capturas);
+        if (!d.lat || !d.lon || d.lat === -9999 || d.lon === -9999) return;
 
-            lotesRaw.forEach(d => {
-                const color = getColorByCapturas(d.capturas);
-                if (!d.lat || !d.lon || d.lat === -9999 || d.lon === -9999) return;
+        const turnoLabel = d.turno  ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1') : "";
+        const modLabel   = d.modulo ? d.modulo.replace(/.*?(\d+).*/i, 'M$1') : "";
+        const esRojo     = d.capturas > 3;
 
-                const turnoLabel = d.turno
-                    ? d.turno.replace(/.*T\s*0*(\d+).*/i, 'T$1')
-                    : "";
-                const modLabel = d.modulo
-                    ? d.modulo.replace(/.*?(\d+).*/i, 'M$1')
-                    : "";
-                const esRojo = d.capturas > 3;
+        const fuente = d.con_punto_gps
+            ? "📍 GPS trampa (KMZ puntos)"
+            : d.con_kmz
+                ? "🔷 Centroide lote (KMZ polígono)"
+                : "📌 Coordenada Excel";
 
-                const popup = `
+        const popup = `
             <div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.6;">
                 <b>Fundo:</b> ${d.fundo}<br>
                 <b>Módulo:</b> ${d.modulo}<br>
                 <b>Turno:</b> ${d.turno}<br>
                 <b>Lote:</b> ${d.lote}<br>
                 <hr style="margin:4px 0;">
-                <b style="color:#d9534f;">${d.capturas} capturas</b>
+                <b style="color:#d9534f;">${d.capturas} capturas</b><br>
+                <span style="font-size:10px;color:#888;">${fuente}</span>
             </div>
         `;
 
-                // ─── MODO PNG: SOLO TEXTO LIMPIO ───
-                if (modoSoloAlertas) {
-                    const textColor = esRojo ? "#000000" : "#000000";
-                    const textLabel = esRojo ? `${modLabel}-${turnoLabel} ${d.capturas}` : `${modLabel}-${turnoLabel}`;
+        if (modoSoloAlertas) {
+            const textLabel = esRojo
+                ? `${modLabel}-${turnoLabel} ${d.capturas}`
+                : `${modLabel}-${turnoLabel}`;
+            if (esRojo) {
+                L.circleMarker([d.lat, d.lon], {
+                    radius: 7, fillColor: "#E63946", color: '#000',
+                    weight: 1.5, opacity: 1, fillOpacity: 0.3
+                }).bindPopup(popup).addTo(circleLayer);
+            }
+            const cleanLabel = L.divIcon({
+                className: "",
+                html: `<div style="color:#000;font-weight:900;font-size:8px;
+                                   text-shadow:0 1px 2px rgba(255,255,255,0.8);">
+                           ${textLabel}
+                       </div>`,
+                iconSize: [75, 16], iconAnchor: [37, 8], popupAnchor: [0, -12],
+            });
+            L.marker([d.lat, d.lon], { icon: cleanLabel, interactive: true })
+                .bindPopup(popup).addTo(circleLayer);
 
-                    // Solo círculo si es rojo
-                    if (esRojo) {
-                        L.circleMarker([d.lat, d.lon], {
-                            radius: 7,
-                            fillColor: "#E63946",
-                            color: '#000',
-                            weight: 1.5,
-                            opacity: 1,
-                            fillOpacity: 0.3
-                        }).bindPopup(popup).addTo(circleLayer);
-                    }
-
-                    const cleanLabel = L.divIcon({
-                        className: "",
-                        html: `<div style="color:${textColor};font-weight:900;font-size:8px;text-shadow:0 1px 2px rgba(255,255,255,0.8);">${textLabel}</div>`,
-                        //                                                    ↑ CAMBIAR DE 11px A 8px
-                        iconSize: [75, 16],  // ← TAMBIÉN ACHICA UN POCO EL CUADRO
-                        iconAnchor: [37, 8],
-                        popupAnchor: [0, -12],
-                    });
-                    L.marker([d.lat, d.lon], { icon: cleanLabel, interactive: true })
-                        .bindPopup(popup)
-                        .addTo(circleLayer);
-
-                    // ─── MODO STREAMLIT: COLORIDO CON EMOJIS ───
-                } else {
-                    if (esRojo) {
-                        const moscaIconZoom = L.divIcon({
-                            className: "",
-                            html: `
+        } else {
+            if (esRojo) {
+                const moscaIconZoom = L.divIcon({
+                    className: "",
+                    html: `
                         <div style="display:flex;flex-direction:column;align-items:center;gap:0px;">
                             <div style="font-size:16px;
                                 animation:flotar 1.2s ease-in-out infinite;
                                 filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🪰</div>
                             <div style="
-                                background:#FF0000;
-                                color:#fff;
-                                padding:2px 7px;
-                                border-radius:10px;
-                                font-size:10px;
-                                font-weight:900;
+                                background:#FF0000;color:#fff;
+                                padding:2px 7px;border-radius:10px;
+                                font-size:10px;font-weight:900;
                                 border:1.5px solid rgba(255,255,255,0.85);
                                 box-shadow:0 1px 4px rgba(0,0,0,0.4);
                                 white-space:nowrap;text-align:center;line-height:1.4;
                             ">${modLabel}-${turnoLabel} 🪰${d.capturas}</div>
-                        </div>
-                    `,
-                            iconSize: [100, 40],
-                            iconAnchor: [50, 40],
-                            popupAnchor: [0, -42],
-                        });
-                        L.marker([d.lat, d.lon], { icon: moscaIconZoom })
-                            .bindPopup(popup)
-                            .addTo(circleLayer);
-
-                    } else {
-                        const labelIcon = L.divIcon({
-                            className: "turno-label",
-                            html: `
-        <div style="
-            background:${color};
-            color:${d.capturas === 0 ? '#000' : '#fff'};;
-            padding:2px 7px;
-            border-radius:10px;
-            font-size:10px;
-            font-weight:800;
-            border:1.5px solid rgba(255,255,255,0.85);
-            box-shadow:0 1px 4px rgba(0,0,0,0.4);
-            white-space:nowrap;text-align:center;
-            line-height:1.4;cursor:pointer;
-        ">${modLabel}-${turnoLabel}</div>
-    `,
-                            iconSize: [80, 20],
-                            iconAnchor: [40, 28],
-                            popupAnchor: [0, -30],
-                        });
-
-                        L.circleMarker([d.lat, d.lon], {
-                            radius: 6,
-                            fillColor: color,
-                            color: '#000',
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.9
-                        }).bindPopup(popup).addTo(circleLayer);
-
-                        L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
-                            .bindPopup(popup)
-                            .addTo(circleLayer);
-                    }
-                }
-            });
-
-            // ── Guardar capas globalmente ──
-            window._badgeLayer = badgeLayer;
-            window._circleLayer = circleLayer;
-
-            _actualizarCapasPorZoom();
-
-            console.log(`✅ Badges: ${lotes.length} turnos | Círculos: ${lotesRaw.length} lotes`);
+                        </div>`,
+                    iconSize: [100, 40], iconAnchor: [50, 40], popupAnchor: [0, -42],
+                });
+                L.marker([d.lat, d.lon], { icon: moscaIconZoom })
+                    .bindPopup(popup).addTo(circleLayer);
+            } else {
+                const labelIcon = L.divIcon({
+                    className: "turno-label",
+                    html: `
+                        <div style="
+                            background:${color};
+                            color:${d.capturas === 0 ? '#000' : '#fff'};
+                            padding:2px 7px;border-radius:10px;
+                            font-size:10px;font-weight:800;
+                            border:1.5px solid rgba(255,255,255,0.85);
+                            box-shadow:0 1px 4px rgba(0,0,0,0.4);
+                            white-space:nowrap;text-align:center;
+                            line-height:1.4;cursor:pointer;
+                        ">${modLabel}-${turnoLabel}</div>`,
+                    iconSize: [80, 20], iconAnchor: [40, 28], popupAnchor: [0, -30],
+                });
+                L.circleMarker([d.lat, d.lon], {
+                    radius: 6, fillColor: color, color: '#000',
+                    weight: 1, opacity: 1, fillOpacity: 0.9
+                }).bindPopup(popup).addTo(circleLayer);
+                L.marker([d.lat, d.lon], { icon: labelIcon, interactive: true })
+                    .bindPopup(popup).addTo(circleLayer);
+            }
         }
+    });
+
+    // ── Guardar capas globalmente ──
+    window._badgeLayer  = badgeLayer;
+    window._circleLayer = circleLayer;
+
+    _actualizarCapasPorZoom();
+
+    console.log(`✅ Badges: ${lotes.length} turnos | Círculos: ${lotesRaw.length} lotes`);
+}
         const ZOOM_CIRCULOS = 16;
 
         function _actualizarCapasPorZoom() {
