@@ -862,7 +862,7 @@ def main():
     df = load_trampas_anexadas()
 
     # ── 2. Semana más reciente ──
-    semana_actual = int(df["semana"].dropna().max())
+    semana_actual = 22
     log(f"📊 Semana más reciente: S{semana_actual}")
 
     df_semana = df[df["semana"] == semana_actual].copy()
