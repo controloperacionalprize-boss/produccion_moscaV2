@@ -30,7 +30,7 @@ import numpy as np
 ONEDRIVE_URL_AQUAI  = os.environ.get("ONEDRIVE_URL_AQUAI",  "")
 ONEDRIVE_URL_AQUAII = os.environ.get("ONEDRIVE_URL_AQUAII", "")
 GITHUB_TOKEN_KMZ    = os.environ.get("GITHUB_TOKEN_KMZ",    "")
-GITHUB_TOKEN        = os.environ.get("GITHUB_TOKEN",        "")
+GITHUB_TOKEN = os.environ.get("GH_TOKEN", "")
 GITHUB_OWNER        = os.environ.get("GITHUB_OWNER",        "controloperacionalprize-boss")
 GITHUB_REPO         = os.environ.get("GITHUB_REPO",         "mapa_html")
 GITHUB_BRANCH       = os.environ.get("GITHUB_BRANCH",       "main")

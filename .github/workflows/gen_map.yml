@@ -48,7 +48,7 @@ jobs:
           ONEDRIVE_URL_AQUAI:  ${{ secrets.ONEDRIVE_URL_AQUAI }}
           ONEDRIVE_URL_AQUAII: ${{ secrets.ONEDRIVE_URL_AQUAII }}
           GITHUB_TOKEN_KMZ:    ${{ secrets.GITHUB_TOKEN_KMZ }}
-          GITHUB_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN:            ${{ secrets.GH_TOKEN }}
           GITHUB_OWNER:        ${{ secrets.GITHUB_OWNER }}
           GITHUB_REPO:         ${{ secrets.GITHUB_REPO }}
           GITHUB_BRANCH:       main
