@@ -1,0 +1,63 @@
+name: 🗺️ Generar Mapa Mosca - Automático
+
+on:
+  schedule:
+    - cron: '0 13 * * 1'   # Lunes 8:00 AM Lima (UTC-5 = 13:00 UTC)
+  workflow_dispatch:         # También ejecutable manualmente desde GitHub Actions
+
+jobs:
+  generar-mapa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Checkout del repo ──
+      - name: 📥 Checkout repositorio
+        uses: actions/checkout@v4
+
+      # ── 2. Python ──
+      - name: 🐍 Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ── 3. Dependencias ──
+      - name: 📦 Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install \
+            pandas \
+            numpy \
+            openpyxl \
+            requests \
+            lxml \
+            scipy \
+            matplotlib \
+            shapely \
+            Pillow \
+            playwright
+
+      # ── 4. Playwright Chromium ──
+      - name: 🌐 Instalar Playwright Chromium
+        run: playwright install chromium --with-deps
+
+      # ── 5. Ejecutar script ──
+      - name: 🚀 Generar mapa PNG y publicar HTML
+        env:
+          ONEDRIVE_URL_AQUAI:  ${{ secrets.ONEDRIVE_URL_AQUAI }}
+          ONEDRIVE_URL_AQUAII: ${{ secrets.ONEDRIVE_URL_AQUAII }}
+          GITHUB_TOKEN_KMZ:    ${{ secrets.GITHUB_TOKEN_KMZ }}
+          GITHUB_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER:        ${{ secrets.GITHUB_OWNER }}
+          GITHUB_REPO:         ${{ secrets.GITHUB_REPO }}
+          GITHUB_BRANCH:       main
+        run: python scripts/generar_mapa_automatico.py
+
+      # ── 6. Resumen en Actions ──
+      - name: 📋 Resumen
+        if: always()
+        run: |
+          echo "## 🗺️ Mapa Mosca - Resultado" >> $GITHUB_STEP_SUMMARY
+          echo "- **Fecha ejecución:** $(date '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML:** https://${{ secrets.GITHUB_OWNER }}.github.io/${{ secrets.GITHUB_REPO }}/mapa_mosca.html" >> $GITHUB_STEP_SUMMARY

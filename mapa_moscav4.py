@@ -894,7 +894,8 @@ def load_trampas_anexadas() -> pd.DataFrame:
 
     URL_AQUAI  = st.secrets.get("ONEDRIVE_URL_AQUAI",  "")
     URL_AQUAII = st.secrets.get("ONEDRIVE_URL_AQUAII", "")
-
+    st.sidebar.write("URL AQI:", URL_AQUAI[:60] if URL_AQUAI else "❌ VACÍA")
+    st.sidebar.write("URL AQII:", URL_AQUAII[:60] if URL_AQUAII else "❌ VACÍA")
     ARCHIVOS = {
         "AQI":  (URL_AQUAI,  "Bdatos"),
         "AQII": (URL_AQUAII, "BDatos AQU II"),
@@ -1012,7 +1013,9 @@ st.sidebar.markdown("---")
 # CARGAR DATOS EXCEL Y KMZ
 # ============================================================
 df = load_trampas_anexadas()
-
+with st.sidebar.expander("🔍 DEBUG: Trampas únicas", expanded=True):
+    st.write(sorted(df["trampa"].dropna().unique().tolist()))
+    st.write(f"Total tipos: {df['trampa'].nunique()}")
 @st.cache_data(show_spinner="Descargando KMZ desde GitHub…")
 def download_kmz_from_github() -> bytes | None:
     import urllib.request, urllib.error
@@ -1871,11 +1874,6 @@ with col_png:
                             png_bytes = page.screenshot(full_page=False)
 
                         browser.close()
-
-                # ── RENDERIZAR LOGS EN LA INTERFAZ DE STREAMLIT ──
-                if js_log_data:
-                    st.sidebar.info("📊 Telemetría Interna del Mapa:")
-                    st.sidebar.json(js_log_data)
 
                 if png_bytes:
                     img = Image.open(io.BytesIO(png_bytes))
