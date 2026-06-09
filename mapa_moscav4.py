@@ -159,9 +159,60 @@ def calcular_lotes_con_centroide(valid: pd.DataFrame, kmz_polygons: list[dict]) 
         centroide = poly_index.get(key)
 
         if centroide:
-            lat_final = centroide["lat"]
-            lon_final = centroide["lon"]
-            con_kmz   = True
+            # ── ¿Es trampa perimetral? ──
+            trampa_val = str(row.get("trampa", "")).upper()
+            es_perimetral = "CASERAS PERIMETRALES" in trampa_val
+
+            # ← PEGA EL DEBUG AQUÍ
+            if es_perimetral:
+                poly_match = next(
+                    (p for p in kmz_polygons
+                    if str(p.get("fundo_aq", "")).upper() == fundo_aq
+                    and p.get("mod_n") == mod_n
+                    and p.get("tur_n") == tur_n
+                    and norm_lote(str(p.get("lote_name", ""))) == lote_n),
+                    None
+                )
+                
+                if not poly_match:
+                    disponibles = [
+                        f"{str(p.get('fundo_aq','')).upper()}|{p.get('mod_n')}|{p.get('tur_n')}|{norm_lote(str(p.get('lote_name','')))}"
+                        for p in kmz_polygons
+                        if str(p.get('fundo_aq','')).upper() == fundo_aq
+                        and p.get('mod_n') == mod_n
+                    ]
+                    st.sidebar.write(f"  KMZ para {fundo_aq}|{mod_n}: {disponibles[:5]}")
+
+
+            if es_perimetral:
+                poly_match = next(
+                    (p for p in kmz_polygons
+                    if str(p.get("fundo_aq", "")).upper() == fundo_aq
+                    and p.get("mod_n") == mod_n
+                    and p.get("tur_n") == tur_n
+                    and norm_lote(str(p.get("lote_name", ""))) == lote_n),
+                    None
+                )
+                if poly_match and len(poly_match.get("coords", [])) >= 3:
+                    from shapely.geometry import Polygon as ShapelyPoly, Point
+                    from shapely.ops import nearest_points as shapely_nearest
+                    coords = poly_match["coords"]  # [[lat, lon], ...]
+                    # Shapely usa (lon, lat)
+                    shapely_coords = [(c[1], c[0]) for c in coords]
+                    poly_shp   = ShapelyPoly(shapely_coords)
+                    centroid_pt = Point(centroide["lon"], centroide["lat"])
+                    pt_borde, _ = shapely_nearest(poly_shp.exterior, centroid_pt)
+                    lat_final = pt_borde.y
+                    lon_final = pt_borde.x
+                else:
+                    # Fallback: centroide normal si no encuentra polígono
+                    lat_final = centroide["lat"]
+                    lon_final = centroide["lon"]
+            else:
+                lat_final = centroide["lat"]
+                lon_final = centroide["lon"]
+
+            con_kmz = True
             con_kmz_count += 1
         else:
             lat_excel = row.get("lat")
@@ -962,11 +1013,10 @@ st.sidebar.markdown("---")
 # ============================================================
 df = load_trampas_anexadas()
 
-# DESPUÉS:
 @st.cache_data(show_spinner="Descargando KMZ desde GitHub…")
 def download_kmz_from_github() -> bytes | None:
     import urllib.request, urllib.error
-    token   = st.secrets.get("GITHUB_TOKEN_KMZ", "")  # ← token específico KMZ
+    token   = st.secrets.get("GITHUB_TOKEN_KMZ", "")
     api_url = (
         "https://api.github.com/repos/"
         "controloperacionalprize-boss/CAMPO_RENDIMIENTO/"
@@ -990,6 +1040,7 @@ def download_kmz_from_github() -> bytes | None:
     except Exception as ex:
         st.sidebar.error(f"❌ KMZ Error: {ex}")
         return None
+
 # ── Cargar KMZ: primero GitHub, fallback local ──
 _kmz_bytes = download_kmz_from_github()
 
@@ -1003,35 +1054,64 @@ if _kmz_bytes:
 else:
     st.sidebar.error("❌ KMZ no disponible")
     kmz_polygons = []
+
 # ── FILTROS ENCADENADOS ──
 with st.sidebar.expander("🔍 Filtros de datos", expanded=True):
 
     df_f = df.copy()
 
+    # ── SEMANA ──
+    semanas_opts = ["Todos"] + sorted(df_f["semana"].dropna().unique().astype(int).tolist())
+    sel_semana_val = st.selectbox("Semana", options=semanas_opts, index=0)
+    sel_semana = [] if sel_semana_val == "Todos" else [int(sel_semana_val)]
+    df_f = df_f[df_f["semana"] == int(sel_semana_val)].copy() if sel_semana else df_f
 
-    semanas_opts = sorted(df_f["semana"].dropna().unique().astype(int).tolist())
-    sel_semana   = st.multiselect("Semana", options=semanas_opts, default=[])
-    df_f = df_f[df_f["semana"].isin(sel_semana)].copy() if sel_semana else df_f
+    # ── FUNDO ──
+    fundos_opts = ["Todos"] + sorted(df_f["fundo"].dropna().unique().tolist())
+    sel_fundo_val = st.selectbox("Fundo", options=fundos_opts, index=0)
+    sel_fundo = [] if sel_fundo_val == "Todos" else [sel_fundo_val]
+    df_f = df_f[df_f["fundo"] == sel_fundo_val].copy() if sel_fundo else df_f
 
-    fundos_opts = sorted(df_f["fundo"].dropna().unique().tolist())
-    sel_fundo   = st.multiselect("Fundo", options=fundos_opts, default=[])
-    df_f = df_f[df_f["fundo"].isin(sel_fundo)].copy() if sel_fundo else df_f
+    # ── MÓDULO ──
+    mods_opts = ["Todos"] + sorted(df_f["modulo"].dropna().unique().tolist())
+    sel_mod_val = st.selectbox("Módulo", options=mods_opts, index=0)
+    sel_mod = [] if sel_mod_val == "Todos" else [sel_mod_val]
+    df_f = df_f[df_f["modulo"] == sel_mod_val].copy() if sel_mod else df_f
 
-    mods_opts = sorted(df_f["modulo"].dropna().unique().tolist())
-    sel_mod   = st.multiselect("Módulo", options=mods_opts, default=[])
-    df_f = df_f[df_f["modulo"].isin(sel_mod)].copy() if sel_mod else df_f
+    # ── LOTE ──
+    lotes_opts = ["Todos"] + (sorted(df_f["lote"].dropna().unique().tolist()) if "lote" in df_f.columns else [])
+    sel_lote_val = st.selectbox("Lote", options=lotes_opts, index=0)
+    sel_lote = [] if sel_lote_val == "Todos" else [sel_lote_val]
+    df_f = df_f[df_f["lote"] == sel_lote_val].copy() if sel_lote else df_f
 
-    lotes_opts = sorted(df_f["lote"].dropna().unique().tolist()) if "lote" in df_f.columns else []
-    sel_lote   = st.multiselect("Lote", options=lotes_opts, default=[])
-    df_f = df_f[df_f["lote"].isin(sel_lote)].copy() if sel_lote else df_f
+    # ── TURNO ──
+    turnos_opts = ["Todos"] + sorted(df_f["turno"].dropna().unique().tolist())
+    sel_turno_val = st.selectbox("Turno", options=turnos_opts, index=0)
+    sel_turno = [] if sel_turno_val == "Todos" else [sel_turno_val]
+    df_f = df_f[df_f["turno"] == sel_turno_val].copy() if sel_turno else df_f
 
-    turnos_opts = sorted(df_f["turno"].dropna().unique().tolist())
-    sel_turno   = st.multiselect("Turno", options=turnos_opts, default=[])
-    df_f = df_f[df_f["turno"].isin(sel_turno)].copy() if sel_turno else df_f
+    # ── TRAMPA ──
+    trampas_sin_peri = sorted([
+        t for t in df_f["trampa"].dropna().unique().tolist()
+        if "CASERAS PERIMETRALES" not in t.upper()
+    ])
+    trampas_opts = ["Todos"] + trampas_sin_peri
 
-    trampas_opts = sorted(df_f["trampa"].dropna().unique().tolist())
-    sel_trampa   = st.multiselect("Trampa", options=trampas_opts, default=[])
-    df_f = df_f[df_f["trampa"].isin(sel_trampa)].copy() if sel_trampa else df_f
+    incluir_peri = st.checkbox("Ver solo Caseras Perimetrales", value=False, key="incl_peri")
+
+    if incluir_peri:
+        # Solo perimetrales, ocultar selectbox
+        df_f = df_f[df_f["trampa"].str.upper().str.contains("CASERAS PERIMETRALES", na=False)].copy()
+        sel_trampa_val = "CASERAS PERIMETRALES"
+        sel_trampa     = [sel_trampa_val]
+    else:
+        sel_trampa_val = st.selectbox("Trampa", options=trampas_opts, index=0, key="sel_trampa")
+        sel_trampa     = [] if sel_trampa_val == "Todos" else [sel_trampa_val]
+        df_f = (
+            df_f[df_f["trampa"].isin(trampas_sin_peri)].copy()
+            if sel_trampa_val == "Todos"
+            else df_f[df_f["trampa"] == sel_trampa_val].copy()
+        )
 
     # ── RANGO DE FECHAS ──
     if "fecha" in df_f.columns and not df_f.empty:
@@ -1071,21 +1151,27 @@ if not dff.empty:
 
 st.sidebar.markdown("---")
 
-# ── MÉTODO INTERPOLACIÓN ──
-metodo_interp = st.sidebar.radio(
-    "🗺️ Método interpolación",
-    options=["GPS (si existe)", "Lotes KMZ", "Híbrido (GPS + KMZ)"],
-    index=1
-)
+# ── MÉTODO INTERPOLACIÓN (oculto si perimetrales activo) ──
+if not st.session_state.get("incl_peri", False):
+    metodo_interp = st.sidebar.radio(
+        "🗺️ Método interpolación",
+        options=["GPS (si existe)", "Lotes KMZ", "Híbrido (GPS + KMZ)"],
+        index=1
+    )
+else:
+    metodo_interp = "GPS (si existe)"
 
 st.sidebar.markdown("---")
 
-# ── MODO VISUALIZACIÓN ──
-modo_color = st.sidebar.radio(
-    "🎨 Modo visualización",
-    options=["Normal", "Espectral", "Curvas de Nivel"],
-    index=0
-)
+# ── MODO VISUALIZACIÓN (oculto si perimetrales activo) ──
+if not st.session_state.get("incl_peri", False):
+    modo_color = st.sidebar.radio(
+        "🎨 Modo visualización",
+        options=["Normal", "Espectral", "Curvas de Nivel"],
+        index=0
+    )
+else:
+    modo_color = "Normal"
 
 # ── OPCIONES CURVAS NIVEL ──
 num_niveles = grosor_lineas = opacidad_relleno = None
@@ -1097,38 +1183,51 @@ if modo_color == "Curvas de Nivel":
         mostrar_etiquetas = st.checkbox("Mostrar etiquetas", value=False)
         opacidad_relleno  = st.slider("Opacidad (%)",      0, 100, 65)
 
-buffer_val = st.sidebar.slider("📏 Buffer trampas (°)", 0.001, 0.05, 0.010, step=0.001)
-
+if not st.session_state.get("incl_peri", False):
+    buffer_val = st.sidebar.slider("📏 Buffer trampas (°)", 0.001, 0.05, 0.010, step=0.001)
+else:
+    buffer_val = 0.010
+    
 st.sidebar.markdown("---")
 
-# ── VECTORES PROPAGACIÓN ──
-with st.sidebar.expander("🧭 Vectores Propagación", expanded=False):
-    mostrar_vectores = st.checkbox("Mostrar flechas", value=False, key="show_vectors")
-    if mostrar_vectores:
-        n_arrows      = st.slider("Densidad",                5, 30, 15)
-        escala_flecha = st.slider("Longitud (×10⁻⁴ °)",     1, 20,  6)
-        head_size     = st.slider("Tamaño punta (×10⁻⁵ °)", 1, 20,  6)
-        min_mag       = st.slider("Magnitud mínima",         1, 30,  5) / 100.0
-        color_flechas = st.color_picker("Color saetas", value="#1a1aff")
+# ── VECTORES PROPAGACIÓN (oculto si perimetrales activo) ──
+if not st.session_state.get("incl_peri", False):
+    with st.sidebar.expander("🧭 Vectores Propagación", expanded=False):
+        mostrar_vectores = st.checkbox("Mostrar flechas", value=False, key="show_vectors")
+        if mostrar_vectores:
+            n_arrows      = st.slider("Densidad",                5, 30, 15)
+            escala_flecha = st.slider("Longitud (×10⁻⁴ °)",     1, 20,  6)
+            head_size     = st.slider("Tamaño punta (×10⁻⁵ °)", 1, 20,  6)
+            min_mag       = st.slider("Magnitud mínima",         1, 30,  5) / 100.0
+            color_flechas = st.color_picker("Color saetas", value="#1a1aff")
+else:
+    mostrar_vectores = False
 
 st.sidebar.markdown("---")
 st.sidebar.info(f"📊 **Registros:** {len(dff)}")
 
 # ── RESUMEN FILTROS ACTIVOS ──
 filtros_activos = []
-if sel_semana: filtros_activos.append(f"**Semana:** {', '.join(map(str, sel_semana))}")
-if sel_fundo:  filtros_activos.append(f"**Fundo:** {', '.join(sel_fundo)}")
-if sel_mod:    filtros_activos.append(f"**Módulo:** {', '.join(sel_mod)}")
-if sel_lote:   filtros_activos.append(f"**Lote:** {', '.join(sel_lote)}")
-if sel_turno:  filtros_activos.append(f"**Turno:** {', '.join(sel_turno)}")
-if sel_trampa: filtros_activos.append(f"**Trampa:** {', '.join(sel_trampa)}")
+if sel_semana: filtros_activos.append(f"**Semana:** {sel_semana_val}")
+if sel_fundo:  filtros_activos.append(f"**Fundo:** {sel_fundo_val}")
+if sel_mod:    filtros_activos.append(f"**Módulo:** {sel_mod_val}")
+if sel_lote:   filtros_activos.append(f"**Lote:** {sel_lote_val}")
+if sel_turno:  filtros_activos.append(f"**Turno:** {sel_turno_val}")
+filtros_activos.append(
+    "**Trampa:** Solo Caseras Perimetrales"
+    if incluir_peri
+    else (
+        "**Trampa:** Todas (excl. Perimetrales)"
+        if sel_trampa_val == "Todos"
+        else f"**Trampa:** {sel_trampa_val}"
+    )
+)
 
 if filtros_activos:
     st.sidebar.success("✅ Filtros activos")
     with st.sidebar.expander("📋 Ver filtros"):
         for fa in filtros_activos:
             st.markdown(fa)
-
 # ============================================================
 # PREPARAR DATOS PARA JAVASCRIPT
 # ============================================================
@@ -1154,10 +1253,9 @@ if not dff.empty:
 
     dff_agg = (
         dff_agg
-        .groupby(["fundo", "modulo_n", "turno_n", "lote_n"], as_index=False)
+        .groupby(["fundo", "modulo_n", "turno_n", "lote_n", "trampa"], as_index=False)
         .agg({
             "capturas":    "sum",
-            "trampa":      "first",
             "tipo_trampa": "first",
             "lat":         "first",
             "lon":         "first",
@@ -1424,11 +1522,31 @@ def _push_file_github(api_url, contenido, branch, mensaje, headers, es_binario=F
 
 def _build_sufijo():
     import re as _re_fn
-    _partes = ["A2026"]  # ← año fijo porque el filtro está hardcodeado en la carga
+    _partes = ["A2026"]
+
     if sel_semana:
         _partes.append("S" + "-".join(map(str, sorted(sel_semana))))
+
+    if sel_fundo_val and sel_fundo_val != "Todos":
+        fundo_limpio = sel_fundo_val.replace(" ", "_")
+        _partes.append(f"F-{fundo_limpio}")
+
+    if st.session_state.get("incl_peri", False):
+        _partes.append("T-PERIMETRALES")
+    elif sel_trampa_val and sel_trampa_val != "Todos":
+        trampa_limpia = sel_trampa_val.replace(" ", "_")[:20]
+        _partes.append(f"T-{trampa_limpia}")
+
     sufijo = "_".join(_partes) if _partes else "SinFiltro"
     return _re_fn.sub(r'[^A-Za-z0-9_\-]', '', sufijo)[:60]
+
+
+def _build_carpeta():
+    """Carpeta base según semana seleccionada"""
+    if sel_semana:
+        semana_str = "S" + "-".join(map(str, sorted(sel_semana)))
+        return semana_str
+    return "SinSemana"
 
 def _build_headers():
     return {
@@ -1447,10 +1565,10 @@ def _subir_html_a_github(html_content):
     headers   = _build_headers()
     base_repo = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents"
     sufijo    = _build_sufijo()
+    carpeta   = _build_carpeta()
     ts        = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     mensaje   = f"Mapa actualizado {ts} | {sufijo}"
 
-    # ── Anti-caché: meta tags para que el browser no guarde versión vieja ──
     html_limpio = html_content.replace(
         "<head>",
         "<head>\n"
@@ -1459,7 +1577,7 @@ def _subir_html_a_github(html_content):
         '<meta http-equiv="Expires" content="0">\n'
     )
 
-    # ── Archivo fijo (siempre el mismo nombre → sobreescribe) ──
+    # ── Archivo fijo (siempre sobreescribe) ──
     ok1, res1 = _push_file_github(
         f"{base_repo}/{GITHUB_FILE}",
         html_limpio, GITHUB_BRANCH, mensaje, headers
@@ -1467,8 +1585,8 @@ def _subir_html_a_github(html_content):
     if not ok1:
         return False, f"Error subiendo archivo fijo: {res1}"
 
-    # ── Histórico con semana en el nombre ──
-    nombre_h = f"historico/mapa_{sufijo}.html"
+    # ── Histórico con estructura: historico/S5/mapa_A2026_S5_F-ARENA_AZUL_T-JACKSON.html ──
+    nombre_h = f"historico/{carpeta}/mapa_{sufijo}.html"
     _push_file_github(
         f"{base_repo}/{nombre_h}",
         html_limpio, GITHUB_BRANCH, mensaje, headers
@@ -1476,7 +1594,6 @@ def _subir_html_a_github(html_content):
 
     url_historico = f"https://{GITHUB_OWNER}.github.io/{GITHUB_REPO}/{nombre_h}"
     return True, url_historico
-
 
 def _subir_png_a_github(png_bytes):
     import datetime
@@ -1486,9 +1603,12 @@ def _subir_png_a_github(png_bytes):
     headers   = _build_headers()
     base_repo = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents"
     sufijo    = _build_sufijo()
+    carpeta   = _build_carpeta()
     ts        = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     mensaje   = f"PNG generado {ts} | {sufijo}"
-    nombre    = f"historico_png/mapa_{sufijo}.png"
+
+    # ── Estructura: historico_png/S5/mapa_A2026_S5_F-ARENA_AZUL_T-JACKSON.png ──
+    nombre = f"historico_png/{carpeta}/mapa_{sufijo}.png"
 
     ok, res = _push_file_github(
         f"{base_repo}/{nombre}",
@@ -1497,7 +1617,6 @@ def _subir_png_a_github(png_bytes):
     if ok:
         return True, f"https://{GITHUB_OWNER}.github.io/{GITHUB_REPO}/{nombre}"
     return False, res
-
 
 # ── Botones en sidebar ──
 st.sidebar.markdown("---")
